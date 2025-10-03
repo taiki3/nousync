@@ -20,11 +20,11 @@ export default async function handler(req: any, res: any) {
             [id],
           ),
         )
-        if (rows.rowCount === 0) {
+        if ((rows as any).rowCount === 0) {
           res.status(404).json({ status: 'error', error: 'Not found' })
           return
         }
-        res.status(200).json({ status: 'success', data: rows.rows[0] })
+        res.status(200).json({ status: 'success', data: (rows as any).rows[0] })
       } else {
         const projectId = (req.query?.projectId || '').toString() || null
         const params: any[] = []
@@ -46,7 +46,7 @@ export default async function handler(req: any, res: any) {
             params,
           ),
         )
-        res.status(200).json({ status: 'success', data: rows.rows })
+        res.status(200).json({ status: 'success', data: (rows as any).rows })
       }
       return
     }

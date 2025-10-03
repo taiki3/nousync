@@ -5,7 +5,10 @@ export const pool = new Pool({
   ssl: { rejectUnauthorized: false },
 })
 
-export async function withRls<T>(userId: string, fn: (client: any) => Promise<T>): Promise<T> {
+export async function withRls<T = any>(
+  userId: string,
+  fn: (client: any) => Promise<T>,
+): Promise<T> {
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
