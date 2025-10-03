@@ -1,0 +1,12 @@
+{
+  "version": 2,
+  "functions": {
+    "apps/api/api/**/*.ts": {
+      "runtime": "nodejs20.x"
+    }
+  },
+  "routes": [
+    { "src": "/api/(.*)", "dest": "apps/api/api/$1.ts" },
+    { "src": "/(.*)", "dest": "apps/web/dist/$1" }
+  ]
+}
