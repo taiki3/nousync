@@ -1,6 +1,6 @@
 import OpenAI from 'openai'
-import { withRls } from '../lib/db'
-import { getUserIdFromRequest } from '../lib/auth'
+import { withRls } from '../lib/db.js'
+import { getUserIdFromRequest } from '../lib/auth.js'
 
 export default async function handler(req: any, res: any) {
   try {

@@ -1,6 +1,6 @@
 import OpenAI from 'openai'
-import { withRls } from '../lib/db'
-import { getUserIdFromRequest } from '../lib/auth'
+import { withRls } from '../lib/db.js'
+import { getUserIdFromRequest } from '../lib/auth.js'
 
 function chunkText(text: string, chunkSize = 1000): string[] {
   const chunks: string[] = []
