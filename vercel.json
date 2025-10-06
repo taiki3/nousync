@@ -1,5 +1,16 @@
 {
   "installCommand": "pnpm install --no-frozen-lockfile",
   "buildCommand": "pnpm --filter @nousync/web build",
-  "outputDirectory": "apps/web/dist"
+  "outputDirectory": "apps/web/dist",
+  "functions": {
+    "apps/api/api/**/*.ts": {
+      "runtime": "nodejs20.x"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "/apps/api/api/:path*"
+    }
+  ]
 }
