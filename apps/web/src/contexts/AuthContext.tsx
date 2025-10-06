@@ -87,7 +87,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const email = prompt('メールアドレスを入力してください:')
     if (!email) return
 
-    const { error } = await supabase.auth.signInWithOtp({ email })
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: window.location.origin,
+      }
+    })
     if (error) {
       alert(`ログインエラー: ${error.message}`)
     } else {
