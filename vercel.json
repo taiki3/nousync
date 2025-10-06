@@ -1,4 +1,4 @@
 {
-  "buildCommand": "pnpm -w install && pnpm -w build",
+  "buildCommand": "pnpm install && pnpm --filter @nousync/web build",
   "outputDirectory": "apps/web/dist"
 }
