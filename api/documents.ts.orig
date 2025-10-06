@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { withRls } from '../lib/db.js'
-import { getUserIdFromRequest } from '../lib/auth.js'
+import { withRls } from './lib/db.js'
+import { getUserIdFromRequest } from './lib/auth.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
@@ -62,12 +62,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const row = await withRls(userId, async (client) => {
         const { rows } = await client.query(
           `INSERT INTO documents (user_id, project_id, title, content, summary, tags)
-           VALUES ($1, $2, $3, $4, NULL, $5)
+           VALUES ($1, $1, $2, $3, NULL, $4)
            RETURNING id::text, user_id::text, project_id::text, title, content, summary, tags,
                      file_name, file_size, mime_type,
                      to_char(created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at,
                      to_char(updated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS updated_at`,
-          [userId, projectId, title, content, JSON.stringify(tags)],
+          [projectId, title, content, JSON.stringify(tags)],
         )
         return rows[0]
       })

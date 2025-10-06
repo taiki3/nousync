@@ -21,11 +21,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           if (ex.rowCount > 0) return ex.rows[0]
           const ins = await client.query(
             `INSERT INTO projects (user_id, name, description, color, is_default)
-             VALUES (auth.uid(), 'Default', NULL, NULL, true)
+             VALUES ($1, 'Default', NULL, NULL, true)
              RETURNING id::text, user_id::text, name, description, color, is_default,
                        to_char(created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at,
                        to_char(updated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS updated_at`,
-          )
+          [userId])
           return ins.rows[0]
         })
         res.status(200).json({ status: 'success', data: row })
@@ -55,11 +55,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const row = await withRls(userId, async (client) => {
         const { rows } = await client.query(
           `INSERT INTO projects (user_id, name, description, color, is_default)
-           VALUES (auth.uid(), $1, $2, $3, $4)
+           VALUES ($1, $2, $3, $4, $5)
            RETURNING id::text, user_id::text, name, description, color, is_default,
                      to_char(created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at,
                      to_char(updated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS updated_at`,
-          [name, description, color, !!isDefault],
+          [userId, name, description, color, !!isDefault],
         )
         return rows[0]
       })

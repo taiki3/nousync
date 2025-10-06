@@ -31,11 +31,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const row = await withRls(userId, async (client) => {
         const { rows } = await client.query(
           `INSERT INTO conversations (user_id, title)
-           VALUES (auth.uid(), $1)
+           VALUES ($1, $2)
            RETURNING id::text, user_id::text, title,
                      to_char(created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at,
                      to_char(updated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS updated_at`,
-          [title],
+          [userId, title],
         )
         return rows[0]
       })
