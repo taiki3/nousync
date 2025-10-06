@@ -7,6 +7,3 @@ dist/
 .pnpm-store/
 .DS_Store
 *.log
-
-# Vercel API symlink (points to apps/api/api)
-/api
