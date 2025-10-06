@@ -84,19 +84,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [])
 
   const login = async () => {
-    const email = prompt('メールアドレスを入力してください:')
-    if (!email) return
-
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
       options: {
-        emailRedirectTo: window.location.origin,
-      }
+        redirectTo: window.location.origin,
+      },
     })
     if (error) {
       alert(`ログインエラー: ${error.message}`)
-    } else {
-      alert('メールを確認してログインリンクをクリックしてください')
     }
   }
 
