@@ -1,0 +1,9 @@
+# Ignore reference sources and common build artifacts
+reference/
+node_modules/
+dist/
+.vscode/
+.vercel/
+.pnpm-store/
+.DS_Store
+*.log
