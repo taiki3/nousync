@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { withRls } from '../lib/db.js'
-import { getUserIdFromRequest } from '../lib/auth.js'
+import { withRls } from './lib/db.js'
+import { getUserIdFromRequest } from './lib/auth.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {

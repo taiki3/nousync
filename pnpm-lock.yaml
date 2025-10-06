@@ -7,6 +7,16 @@ settings:
 importers:
 
   .:
+    dependencies:
+      '@vercel/node':
+        specifier: ^5.3.24
+        version: 5.3.24(rollup@4.52.4)
+      openai:
+        specifier: ^4.59.0
+        version: 4.104.0(ws@8.18.3)
+      pg:
+        specifier: ^8.11.5
+        version: 8.16.3
     devDependencies:
       '@supabase/supabase-js':
         specifier: ^2.45.0
