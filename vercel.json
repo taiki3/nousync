@@ -1,13 +1,4 @@
 {
-  "version": 2,
-  "installCommand": "pnpm -w install --no-frozen-lockfile",
-  "builds": [
-    { "src": "apps/web/package.json", "use": "@vercel/static-build", "config": { "distDir": "dist", "buildCommand": "pnpm --filter @nousync/web build" } },
-    { "src": "apps/api/api/**/*.ts", "use": "@vercel/node" }
-  ],
-  "routes": [
-    { "src": "/api/(.*)", "dest": "apps/api/api/$1.ts" },
-    { "handle": "filesystem" },
-    { "src": "/(.*)", "dest": "apps/web/dist/index.html" }
-  ]
+  "buildCommand": "pnpm -w install && pnpm -w build",
+  "outputDirectory": "apps/web/dist"
 }
