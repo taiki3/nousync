@@ -83,15 +83,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, [])
 
-  const login = () => {
-    // Redirect to Supabase auth UI or implement custom login
-    // For now, we'll use Supabase's built-in OAuth
-    supabase.auth.signInWithOAuth({
-      provider: 'google', // You can change this or make it configurable
-      options: {
-        redirectTo: window.location.origin,
-      },
-    })
+  const login = async () => {
+    const email = prompt('メールアドレスを入力してください:')
+    if (!email) return
+
+    const { error } = await supabase.auth.signInWithOtp({ email })
+    if (error) {
+      alert(`ログインエラー: ${error.message}`)
+    } else {
+      alert('メールを確認してログインリンクをクリックしてください')
+    }
   }
 
   const logout = async () => {
