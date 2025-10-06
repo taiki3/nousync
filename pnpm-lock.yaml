@@ -21,12 +21,18 @@ importers:
       '@supabase/supabase-js':
         specifier: ^2.45.0
         version: 2.58.0
+      '@types/node':
+        specifier: ^20.11.30
+        version: 20.19.19
       dotenv:
         specifier: ^17.2.3
         version: 17.2.3
       https-proxy-agent:
         specifier: ^7.0.6
         version: 7.0.6
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
       undici:
         specifier: ^7.16.0
         version: 7.16.0
