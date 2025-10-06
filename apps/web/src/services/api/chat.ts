@@ -62,7 +62,7 @@ export const chatApi = {
   // 新しい会話を作成
   async createConversation(title = 'New Conversation'): Promise<number> {
     const client = getApiClient()
-    const response = await client.post<CreateConversationResponse>('/api/chat/conversations', {
+    const response = await client.post<CreateConversationResponse>('/chat/conversations', {
       title,
     })
     return response.data.conversationId
@@ -96,7 +96,7 @@ export const chatApi = {
       // Note: ストリーミングには直接fetchを使用する必要がある
       const token = client.getAuthToken()
       const apiUrl = client.getApiBaseUrl()
-      const response = await fetch(`${apiUrl}/api/chat/conversations/${conversationId}/messages`, {
+      const response = await fetch(`${apiUrl}/chat/conversations/${conversationId}/messages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -153,7 +153,7 @@ export const chatApi = {
     }
     // 通常のレスポンス
     const response = await client.post<ApiResponse<BackendChatResponse>>(
-      `/api/chat/conversations/${conversationId}/messages`,
+      `/chat/conversations/${conversationId}/messages`,
       messageData,
       {
         signal,
@@ -183,7 +183,7 @@ export const chatApi = {
     const { conversationId, ...researchData } = request
     const response = await client.post<
       ApiResponse<{ documentId: string; title: string; summary: string | null }>
-    >(`/api/chat/conversations/${conversationId}/research`, researchData, {
+    >(`/chat/conversations/${conversationId}/research`, researchData, {
       signal,
       timeout: 300000, // 5分のタイムアウト
     })
@@ -213,20 +213,20 @@ export const chatApi = {
   async getHistory(limit?: number): Promise<Message[]> {
     const client = getApiClient()
     const params = limit ? `?limit=${limit}` : ''
-    const response = await client.get<Message[]>(`/api/chat/history${params}`)
+    const response = await client.get<Message[]>(`/chat/history${params}`)
     return response
   },
 
   // 会話履歴をクリア
   async clearHistory(): Promise<void> {
     const client = getApiClient()
-    await client.delete('/api/chat/history')
+    await client.delete('/chat/history')
   },
 
   // 利用可能なモデルを取得
   async getModels(): Promise<AIModel[]> {
     const client = getApiClient()
-    const response = await client.get<ApiResponse<{ models: AIModel[] }>>('/api/chat/models')
+    const response = await client.get<ApiResponse<{ models: AIModel[] }>>('/chat/models')
 
     // Handle ApiResponse wrapper
     if (response.data?.models) {
@@ -246,7 +246,7 @@ export async function createChatStream(request: ChatMessageRequest): Promise<Rea
   return new ReadableStream({
     async start(controller) {
       try {
-        const response = await fetch(`${apiUrl}/api/chat`, {
+        const response = await fetch(`${apiUrl}/chat`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

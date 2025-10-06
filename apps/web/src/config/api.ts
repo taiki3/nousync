@@ -13,9 +13,9 @@ const getApiUrl = () => {
     return apiUrl
   }
 
-  // In production, use the same origin (nginx will proxy /api requests)
+  // In production, use the same origin with /api prefix (Vercel will route to serverless functions)
   if (import.meta.env.PROD) {
-    const apiUrl = '' // Empty string means same origin
+    const apiUrl = '/api' // /api prefix for Vercel serverless functions
     return apiUrl
   }
 

@@ -18,7 +18,7 @@ export const documentsApi = {
   // ドキュメント一覧を取得
   async getAll(): Promise<Document[]> {
     const client = getApiClient()
-    const response = await client.get<Document[] | ApiResponse<Document[]>>('/api/documents')
+    const response = await client.get<Document[] | ApiResponse<Document[]>>('/documents')
 
     // APIレスポンスの形式に対応
     if (Array.isArray(response)) {
@@ -30,7 +30,7 @@ export const documentsApi = {
   // 特定のドキュメントを取得
   async getById(id: string): Promise<Document> {
     const client = getApiClient()
-    const response = await client.get<Document | ApiResponse<Document>>(`/api/documents/${id}`)
+    const response = await client.get<Document | ApiResponse<Document>>(`/documents?id=${id}`)
 
     // APIレスポンスの形式に対応
     if ('data' in response) {
@@ -42,7 +42,7 @@ export const documentsApi = {
   // ドキュメントを作成
   async create(params: CreateDocumentParams): Promise<Document> {
     const client = getApiClient()
-    const response = await client.post<Document | ApiResponse<Document>>('/api/documents', params)
+    const response = await client.post<Document | ApiResponse<Document>>('/documents', params)
 
     // APIレスポンスの形式に対応
     if ('data' in response) {
@@ -55,7 +55,7 @@ export const documentsApi = {
   async update(id: string, params: UpdateDocumentParams): Promise<Document> {
     const client = getApiClient()
     const response = await client.put<Document | ApiResponse<Document>>(
-      `/api/documents/${id}`,
+      `/documents?id=${id}`,
       params,
     )
 
@@ -69,7 +69,7 @@ export const documentsApi = {
   // ドキュメントを削除
   async delete(id: string): Promise<void> {
     const client = getApiClient()
-    await client.delete(`/api/documents/${id}`)
+    await client.delete(`/documents?id=${id}`)
   },
 
   // ドキュメントを検索
@@ -81,7 +81,7 @@ export const documentsApi = {
     }
 
     const response = await client.get<Document[] | ApiResponse<Document[]>>(
-      `/api/documents/search?${params.toString()}`,
+      `/search?${params.toString()}`,
     )
 
     // APIレスポンスの形式に対応
@@ -98,7 +98,7 @@ export const documentsApi = {
     formData.append('file', file)
 
     const response = await client.upload<Document | ApiResponse<Document>>(
-      '/api/documents',
+      '/documents',
       formData,
     )
 
