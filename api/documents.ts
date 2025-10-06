@@ -29,7 +29,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       } else {
         const projectId = (req.query?.projectId || '').toString() || null
         const params: any[] = []
-        let where = 'user_id = auth.uid()' // RLSがあるため冗長だが明示
+        let where = 'TRUE' // RLSがあるため冗長だが明示
         if (projectId) {
           where += ' AND project_id = $1'
           params.push(projectId)
@@ -62,12 +62,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const row = await withRls(userId, async (client) => {
         const { rows } = await client.query(
           `INSERT INTO documents (user_id, project_id, title, content, summary, tags)
-           VALUES (auth.uid(), $1, $2, $3, NULL, $4)
+           VALUES ($1, $2, $3, $4, NULL, $5)
            RETURNING id::text, user_id::text, project_id::text, title, content, summary, tags,
                      file_name, file_size, mime_type,
                      to_char(created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at,
                      to_char(updated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS updated_at`,
-          [projectId, title, content, JSON.stringify(tags)],
+          [userId, projectId, title, content, JSON.stringify(tags)],
         )
         return rows[0]
       })
