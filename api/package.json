@@ -1,0 +1,16 @@
+{
+  "name": "@nousync/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "openai": "^4.59.0",
+    "pg": "^8.11.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.30",
+    "@types/pg": "^8.15.5",
+    "@vercel/node": "^5.3.24",
+    "typescript": "^5.4.0"
+  }
+}
