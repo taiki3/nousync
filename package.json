@@ -11,5 +11,11 @@
     "build": "pnpm -r build",
     "dev:web": "pnpm --filter @nousync/web dev",
     "dev:api": "echo 'Use: vercel dev --cwd nousync'"
+  },
+  "devDependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "dotenv": "^17.2.3",
+    "https-proxy-agent": "^7.0.6",
+    "undici": "^7.16.0"
   }
 }

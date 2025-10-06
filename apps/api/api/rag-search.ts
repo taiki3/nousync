@@ -1,8 +1,9 @@
+import type { VercelRequest, VercelResponse } from '@vercel/node'
 import OpenAI from 'openai'
 import { withRls } from '../lib/db.js'
 import { getUserIdFromRequest } from '../lib/auth.js'
 
-export default async function handler(req: any, res: any) {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const userId = await getUserIdFromRequest(req)
     const method = (req.method || 'GET').toUpperCase()

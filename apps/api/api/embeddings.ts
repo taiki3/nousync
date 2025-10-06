@@ -1,3 +1,4 @@
+import type { VercelRequest, VercelResponse } from '@vercel/node'
 import OpenAI from 'openai'
 import { withRls } from '../lib/db.js'
 import { getUserIdFromRequest } from '../lib/auth.js'
@@ -24,7 +25,7 @@ async function createEmbedding(client: OpenAI, input: string): Promise<number[]>
   return out.data[0].embedding as unknown as number[]
 }
 
-export default async function handler(req: any, res: any) {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const userId = await getUserIdFromRequest(req)
     const method = (req.method || 'POST').toUpperCase()
