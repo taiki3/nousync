@@ -12,10 +12,11 @@ export async function withRls<T = any>(
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
-    await client.query('SET LOCAL ROLE authenticated')
+    // JWT claimsを先に設定してからROLEを変更
     await client.query('SET LOCAL "request.jwt.claims" = $1', [
       JSON.stringify({ sub: userId, role: 'authenticated' }),
     ])
+    await client.query('SET LOCAL ROLE authenticated')
     const result = await fn(client)
     await client.query('COMMIT')
     return result
