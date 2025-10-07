@@ -13,7 +13,8 @@ export async function withRls<T = any>(
   try {
     await client.query('BEGIN')
     // JWT claimsを先に設定してからROLEを変更
-    await client.query('SET LOCAL "request.jwt.claims" = $1', [
+    // request.jwt.claimsは引用符なしで指定
+    await client.query("SET LOCAL request.jwt.claims = $1", [
       JSON.stringify({ sub: userId, role: 'authenticated' }),
     ])
     await client.query('SET LOCAL ROLE authenticated')
