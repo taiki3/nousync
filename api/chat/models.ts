@@ -12,37 +12,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return
     }
 
-    // 利用可能なモデル一覧
+    // 利用可能なモデル一覧（フロントエンドのAIModel型に合わせる）
     const models = [
       {
-        id: 'gpt-4o',
-        name: 'GPT-4o',
-        description: 'Most capable model, best for complex tasks',
+        modelId: 'gpt-4o',
+        displayName: 'GPT-4o',
         provider: 'openai',
-        contextWindow: 128000,
       },
       {
-        id: 'gpt-4o-mini',
-        name: 'GPT-4o Mini',
-        description: 'Fast and efficient, good for most tasks',
+        modelId: 'gpt-4o-mini',
+        displayName: 'GPT-4o Mini',
         provider: 'openai',
-        contextWindow: 128000,
       },
       {
-        id: 'gpt-4-turbo',
-        name: 'GPT-4 Turbo',
-        description: 'Previous generation flagship model',
+        modelId: 'gpt-4-turbo',
+        displayName: 'GPT-4 Turbo',
         provider: 'openai',
-        contextWindow: 128000,
       },
       {
-        id: 'gpt-3.5-turbo',
-        name: 'GPT-3.5 Turbo',
-        description: 'Fast and cost-effective',
+        modelId: 'gpt-3.5-turbo',
+        displayName: 'GPT-3.5 Turbo',
         provider: 'openai',
-        contextWindow: 16385,
       },
     ]
+
+    // キャッシュを無効化するヘッダーを設定
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
+    res.setHeader('Pragma', 'no-cache')
+    res.setHeader('Expires', '0')
 
     res.status(200).json({
       status: 'success',
