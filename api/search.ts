@@ -25,7 +25,7 @@ export default async function handler(req: any, res: any) {
                to_char(created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at,
                pgroonga_score(tableoid, ctid) AS score
         FROM documents
-        WHERE user_id = $2
+        WHERE TRUE
           AND ((title &@ $1) OR (content &@ $1))
         ORDER BY score DESC NULLS LAST, created_at DESC
         LIMIT 20
@@ -38,7 +38,7 @@ export default async function handler(req: any, res: any) {
                LEFT(content, 200) AS snippet,
                to_char(created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at
         FROM documents
-        WHERE user_id = $2
+        WHERE TRUE
           AND (title ILIKE '%' || $1 || '%' OR content ILIKE '%' || $1 || '%')
         ORDER BY GREATEST(similarity(title, $1), similarity(content, $1)) DESC NULLS LAST
         LIMIT 20
@@ -46,7 +46,7 @@ export default async function handler(req: any, res: any) {
     }
 
     const rows = await withRls(userId, async (client) => {
-      const { rows } = await client.query(sql, [q, userId])
+      const { rows } = await client.query(sql, [q])
       return rows
     })
     res.status(200).json({ status: 'success', data: rows })
