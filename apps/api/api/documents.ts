@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { withRls } from '../lib/db.js'
-import { getUserIdFromRequest } from '../lib/auth.js'
+import { withRls } from './lib/db.js'
+import { getUserIdFromRequest } from './lib/auth.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
@@ -29,9 +29,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       } else {
         const projectId = (req.query?.projectId || '').toString() || null
         const params: any[] = []
-        let where = 'TRUE' // RLSがあるため冗長だが明示
+        let whereClause = "" // RLSがあるため冗長だが明示
         if (projectId) {
-          where += ' AND project_id = $1'
+          whereClause = "WHERE project_id = $1"
           params.push(projectId)
         }
         const rows = await withRls(userId, (client) =>
@@ -41,7 +41,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     to_char(created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at,
                     to_char(updated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS updated_at
              FROM documents
-             ${params.length ? 'WHERE ' + where : ''}
+             ${whereClause}
              ORDER BY created_at DESC
              LIMIT 100`,
             params,
