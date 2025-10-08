@@ -2,6 +2,8 @@ import type { AIModel, Document } from '@nousync/shared'
 import {
   AlertCircle,
   Bot,
+  ChevronDown,
+  ChevronUp,
   FileText,
   FlaskConical,
   Loader2,
@@ -13,6 +15,7 @@ import {
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { ApiError, chatApi, documentsApi, type Message } from '../services/api'
+import { getDocumentTitle } from '../utils/markdown'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
@@ -80,6 +83,7 @@ export default function ChatWindow({ documents }: ChatWindowProps) {
   const [conversationId, setConversationId] = useState<number | null>(null)
   const [useDocumentContext, setUseDocumentContext] = useState(false)
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([])
+  const [isDocumentSelectionOpen, setIsDocumentSelectionOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showResearchDialog, setShowResearchDialog] = useState(false)
   const [researchTopic, setResearchTopic] = useState('')
@@ -423,7 +427,12 @@ export default function ChatWindow({ documents }: ChatWindowProps) {
                 type="checkbox"
                 id="use-document-context"
                 checked={useDocumentContext}
-                onChange={(e) => setUseDocumentContext(e.target.checked)}
+                onChange={(e) => {
+                  setUseDocumentContext(e.target.checked)
+                  if (e.target.checked) {
+                    setIsDocumentSelectionOpen(true)
+                  }
+                }}
                 className="rounded"
               />
               <label htmlFor="use-document-context" className="text-sm font-medium">
@@ -432,27 +441,51 @@ export default function ChatWindow({ documents }: ChatWindowProps) {
             </div>
 
             {useDocumentContext && (
-              <div className="ml-6">
-                <p className="text-xs text-muted-foreground mb-2">参照するドキュメントを選択:</p>
-                <div className="max-h-32 overflow-y-auto space-y-1 border rounded p-2">
-                  {documents.map((doc) => (
-                    <label key={doc.id} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/50 p-1 rounded">
-                      <input
-                        type="checkbox"
-                        checked={selectedDocumentIds.includes(doc.id)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedDocumentIds(prev => [...prev, doc.id])
-                          } else {
-                            setSelectedDocumentIds(prev => prev.filter(id => id !== doc.id))
-                          }
-                        }}
-                        className="rounded"
-                      />
-                      <span className="truncate">{doc.title}</span>
-                    </label>
-                  ))}
+              <div className="ml-6 space-y-2">
+                <div className="flex items-center justify-between">
+                  <button
+                    onClick={() => setIsDocumentSelectionOpen(!isDocumentSelectionOpen)}
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {isDocumentSelectionOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                    <span>参照するドキュメントを選択 ({selectedDocumentIds.length}/{documents.length})</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      if (selectedDocumentIds.length === documents.length) {
+                        setSelectedDocumentIds([])
+                      } else {
+                        setSelectedDocumentIds(documents.map(d => d.id))
+                      }
+                    }}
+                    className="text-xs text-primary hover:text-primary/80 transition-colors"
+                  >
+                    {selectedDocumentIds.length === documents.length ? 'すべて解除' : 'すべて選択'}
+                  </button>
                 </div>
+
+                {isDocumentSelectionOpen && (
+                  <div className="max-h-32 overflow-y-auto space-y-1 border rounded p-2 animate-in slide-in-from-top-1">
+                    {documents.map((doc) => (
+                      <label key={doc.id} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/50 p-1 rounded">
+                        <input
+                          type="checkbox"
+                          checked={selectedDocumentIds.includes(doc.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedDocumentIds(prev => [...prev, doc.id])
+                            } else {
+                              setSelectedDocumentIds(prev => prev.filter(id => id !== doc.id))
+                            }
+                          }}
+                          className="rounded"
+                        />
+                        <span className="truncate">{getDocumentTitle(doc)}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
