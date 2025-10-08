@@ -70,6 +70,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     })
 
     // OpenAI APIを呼び出し
+    let assistantMessage = ''
     try {
       const completion = await openai.chat.completions.create({
         model: model,
@@ -81,7 +82,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         max_tokens: 2000,
       })
 
-      const assistantMessage = completion.choices[0]?.message?.content || ''
+      assistantMessage = completion.choices[0]?.message?.content || ''
 
       // アシスタントメッセージを保存
       await withRls(userId, async (client) => {
@@ -111,9 +112,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       res.status(500).json({
         status: 'error',
         error: 'Failed to generate response',
-        details: openaiError?.message || 'Unknown OpenAI error',
-        apiKeyPresent: !!process.env.OPENAI_API_KEY,
-        apiKeyLength: process.env.OPENAI_API_KEY?.length || 0
+        details: openaiError?.message || 'Unknown OpenAI error'
       })
     }
   } catch (err: any) {
