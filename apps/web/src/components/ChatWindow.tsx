@@ -247,22 +247,27 @@ export default function ChatWindow({ documents }: ChatWindowProps) {
         },
         enableStreaming ? (chunk: string) => {
           // ストリーミングコールバック
-          isStreamingStarted = true
-          setMessages((prev) => {
-            const newMessages = [...prev]
-            const lastMessage = newMessages[newMessages.length - 1]
-            if (lastMessage && lastMessage.role === 'assistant') {
-              // 既存のアシスタントメッセージに追加
-              lastMessage.content += chunk
-            } else {
-              // 新しいアシスタントメッセージを作成
-              newMessages.push({
-                ...assistantMessage,
-                content: chunk
-              })
-            }
-            return newMessages
-          })
+          if (!isStreamingStarted) {
+            isStreamingStarted = true
+            // 最初のチャンクが来たらローディングを解除
+            setIsLoading(false)
+            // 新しいアシスタントメッセージを追加
+            setMessages((prev) => [...prev, { ...assistantMessage, content: chunk }])
+          } else {
+            // 2回目以降のチャンクは既存メッセージに追加
+            setMessages((prev) => {
+              const newMessages = [...prev]
+              const lastMessage = newMessages[newMessages.length - 1]
+              if (lastMessage && lastMessage.role === 'assistant' && lastMessage.id === assistantMessage.id) {
+                // 同じIDのアシスタントメッセージを更新
+                return [
+                  ...newMessages.slice(0, -1),
+                  { ...lastMessage, content: lastMessage.content + chunk }
+                ]
+              }
+              return newMessages
+            })
+          }
         } : undefined,
         abortController.signal
       )
@@ -424,7 +429,7 @@ export default function ChatWindow({ documents }: ChatWindowProps) {
             return <MessageItem key={message.id} message={message} contextDocuments={contextDocs} />
           })}
 
-          {isLoading && (
+          {isLoading && messages[messages.length - 1]?.role !== 'assistant' && (
             <div className="flex justify-start">
               <div className="flex gap-3">
                 <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
