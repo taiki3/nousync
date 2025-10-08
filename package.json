@@ -9,10 +9,13 @@
   ],
   "scripts": {
     "build": "pnpm -r build",
+    "dev": "pnpm dev:web",
     "dev:web": "pnpm --filter @nousync/web dev",
     "dev:api": "echo 'Use: vercel dev --cwd nousync'",
+    "type-check": "pnpm --filter @nousync/web run typecheck && tsc --project tsconfig.api.json",
     "typecheck": "pnpm --filter @nousync/web run typecheck && tsc --project tsconfig.api.json",
-    "typecheck:api": "tsc --project tsconfig.api.json"
+    "typecheck:api": "tsc --project tsconfig.api.json",
+    "test": "echo 'Tests not implemented yet'"
   },
   "devDependencies": {
     "@supabase/supabase-js": "^2.45.0",
