@@ -5,29 +5,38 @@ import { AIProvider } from '../lib/ai-providers.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
-    const userId = await getUserIdFromRequest(req)
-    const pathSegments = req.url?.split('/').filter(Boolean) || []
+    // Parse the action from query parameters
+    const { action, conversationId, ...queryParams } = req.query
 
-    // Route to appropriate handler based on path
-    // /api/chat/models
-    if (pathSegments.includes('models')) {
-      return handleModels(req, res)
+    // Authenticate user for all endpoints except models listing
+    let userId: string | null = null
+    if (action !== 'models') {
+      userId = await getUserIdFromRequest(req)
     }
 
-    // /api/chat/conversations
-    if (pathSegments.includes('conversations')) {
-      const conversationId = pathSegments[pathSegments.indexOf('conversations') + 1]
+    // Route based on action parameter
+    switch (action) {
+      case 'models':
+        return handleModels(req, res)
 
-      if (conversationId && pathSegments.includes('messages')) {
-        // /api/chat/conversations/{id}/messages
+      case 'conversations':
+        if (!userId) throw new Error('Authentication required')
+        return handleConversations(req, res, userId)
+
+      case 'messages':
+        if (!userId) throw new Error('Authentication required')
+        if (!conversationId || typeof conversationId !== 'string') {
+          res.status(400).json({ status: 'error', error: 'conversationId is required' })
+          return
+        }
         return handleMessages(req, res, userId, conversationId)
-      }
 
-      // /api/chat/conversations (list/create/delete)
-      return handleConversations(req, res, userId)
+      default:
+        res.status(400).json({
+          status: 'error',
+          error: 'Invalid action. Use: models, conversations, or messages'
+        })
     }
-
-    res.status(404).json({ status: 'error', error: 'Not found' })
   } catch (err: any) {
     const status = err?.statusCode || 500
     res.status(status).json({ status: 'error', error: err?.message || 'Internal error' })
