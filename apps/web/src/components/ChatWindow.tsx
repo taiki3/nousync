@@ -78,7 +78,8 @@ export default function ChatWindow({ documents }: ChatWindowProps) {
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [conversationId, setConversationId] = useState<number | null>(null)
-  const [useRAG] = useState(false)
+  const [useRAG, setUseRAG] = useState(false)
+  const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [showResearchDialog, setShowResearchDialog] = useState(false)
   const [researchTopic, setResearchTopic] = useState('')
@@ -199,14 +200,10 @@ export default function ChatWindow({ documents }: ChatWindowProps) {
     setIsLoading(true)
     setError(null)
 
-    // コンテキストドキュメントを検索
+    // コンテキストドキュメントを取得（選択されたドキュメント）
     let contextDocuments: Document[] = []
-    if (useRAG && documents.length > 0) {
-      try {
-        contextDocuments = await documentsApi.search(input, 5)
-      } catch (_error) {
-        // Ignore search errors
-      }
+    if (useRAG && selectedDocumentIds.length > 0) {
+      contextDocuments = documents.filter(doc => selectedDocumentIds.includes(doc.id))
     }
 
     try {
@@ -418,6 +415,49 @@ export default function ChatWindow({ documents }: ChatWindowProps) {
       </div>
 
       <div className="border-t p-4 flex-shrink-0">
+        {/* RAGオプション */}
+        {documents.length > 0 && (
+          <div className="mb-4 space-y-2">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="use-rag"
+                checked={useRAG}
+                onChange={(e) => setUseRAG(e.target.checked)}
+                className="rounded"
+              />
+              <label htmlFor="use-rag" className="text-sm font-medium">
+                ドキュメントを参照して回答
+              </label>
+            </div>
+
+            {useRAG && (
+              <div className="ml-6">
+                <p className="text-xs text-muted-foreground mb-2">参照するドキュメントを選択:</p>
+                <div className="max-h-32 overflow-y-auto space-y-1 border rounded p-2">
+                  {documents.map((doc) => (
+                    <label key={doc.id} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/50 p-1 rounded">
+                      <input
+                        type="checkbox"
+                        checked={selectedDocumentIds.includes(doc.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedDocumentIds(prev => [...prev, doc.id])
+                          } else {
+                            setSelectedDocumentIds(prev => prev.filter(id => id !== doc.id))
+                          }
+                        }}
+                        className="rounded"
+                      />
+                      <span className="truncate">{doc.title}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="flex gap-2">
           <Textarea
             value={input}

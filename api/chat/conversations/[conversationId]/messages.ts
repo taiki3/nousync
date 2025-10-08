@@ -69,14 +69,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       )
     })
 
+    // documentIdsが指定されている場合、ドキュメントの内容を取得
+    let contextContent = ''
+    if (documentIds && documentIds.length > 0) {
+      const documents = await withRls(userId, async (client) => {
+        const { rows } = await client.query(
+          `SELECT title, content FROM documents WHERE id = ANY($1)`,
+          [documentIds]
+        )
+        return rows
+      })
+
+      if (documents.length > 0) {
+        contextContent = '\n\n以下のドキュメントを参考にして回答してください：\n\n'
+        documents.forEach((doc: any) => {
+          contextContent += `【${doc.title}】\n${doc.content}\n\n`
+        })
+      }
+    }
+
     // OpenAI APIを呼び出し
     let assistantMessage = ''
     try {
+      const systemMessage = contextContent
+        ? 'You are a helpful assistant. Use the provided documents as context to answer questions.'
+        : 'You are a helpful assistant.'
+
+      const userMessageWithContext = contextContent
+        ? `${contextContent}\n\n質問: ${message}`
+        : message
+
       const completion = await openai.chat.completions.create({
         model: model,
         messages: [
-          { role: 'system', content: 'You are a helpful assistant.' },
-          { role: 'user', content: message }
+          { role: 'system', content: systemMessage },
+          { role: 'user', content: userMessageWithContext }
         ],
         temperature: 0.7,
         max_tokens: 2000,
