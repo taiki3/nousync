@@ -1,6 +1,6 @@
 import type { Document } from '@nousync/shared'
 import { Edit3, Eye, Plus, Tag, Trash2, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Badge } from './ui/badge'
@@ -24,6 +24,7 @@ export default function TextEditor({
   const [tags, setTags] = useState<string[]>([])
   const [newTag, setNewTag] = useState('')
   const [isAddingTag, setIsAddingTag] = useState(false)
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     if (document) {
@@ -32,11 +33,33 @@ export default function TextEditor({
     }
   }, [document])
 
+  // デバウンスされた更新関数
+  const debouncedUpdate = useCallback((id: string, newContent: string) => {
+    // 既存のタイマーをクリア
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current)
+    }
+
+    // 新しいタイマーをセット（500ms後に実行）
+    debounceTimerRef.current = setTimeout(() => {
+      onDocumentUpdate(id, newContent)
+    }, 500)
+  }, [onDocumentUpdate])
+
+  // クリーンアップ
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current)
+      }
+    }
+  }, [])
+
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newContent = e.target.value
     setContent(newContent)
     if (document) {
-      onDocumentUpdate(document.id, newContent)
+      debouncedUpdate(document.id, newContent)
     }
   }
 
