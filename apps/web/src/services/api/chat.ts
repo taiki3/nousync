@@ -86,9 +86,8 @@ export const chatApi = {
     // Convert to backend format
     const messageData = {
       message: lastUserMessage.content,  // APIは 'message' フィールドを期待
-      useRAG: !!contextDocuments && contextDocuments.length > 0,
       model: model,  // 'modelId' ではなく 'model'
-      documentIds: contextDocuments?.map(doc => doc.id) || []
+      documentIds: contextDocuments?.map(doc => doc.id) || []  // 全文コンテキスト用
     }
 
     if (request.stream && onChunk) {

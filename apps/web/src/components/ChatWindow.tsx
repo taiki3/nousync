@@ -78,7 +78,7 @@ export default function ChatWindow({ documents }: ChatWindowProps) {
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [conversationId, setConversationId] = useState<number | null>(null)
-  const [useRAG, setUseRAG] = useState(false)
+  const [useDocumentContext, setUseDocumentContext] = useState(false)
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [showResearchDialog, setShowResearchDialog] = useState(false)
@@ -202,7 +202,7 @@ export default function ChatWindow({ documents }: ChatWindowProps) {
 
     // コンテキストドキュメントを取得（選択されたドキュメント）
     let contextDocuments: Document[] = []
-    if (useRAG && selectedDocumentIds.length > 0) {
+    if (useDocumentContext && selectedDocumentIds.length > 0) {
       contextDocuments = documents.filter(doc => selectedDocumentIds.includes(doc.id))
     }
 
@@ -415,23 +415,23 @@ export default function ChatWindow({ documents }: ChatWindowProps) {
       </div>
 
       <div className="border-t p-4 flex-shrink-0">
-        {/* RAGオプション */}
+        {/* ドキュメントコンテキストオプション */}
         {documents.length > 0 && (
           <div className="mb-4 space-y-2">
             <div className="flex items-center gap-2">
               <input
                 type="checkbox"
-                id="use-rag"
-                checked={useRAG}
-                onChange={(e) => setUseRAG(e.target.checked)}
+                id="use-document-context"
+                checked={useDocumentContext}
+                onChange={(e) => setUseDocumentContext(e.target.checked)}
                 className="rounded"
               />
-              <label htmlFor="use-rag" className="text-sm font-medium">
-                ドキュメントを参照して回答
+              <label htmlFor="use-document-context" className="text-sm font-medium">
+                ドキュメントの全文をコンテキストとして使用
               </label>
             </div>
 
-            {useRAG && (
+            {useDocumentContext && (
               <div className="ml-6">
                 <p className="text-xs text-muted-foreground mb-2">参照するドキュメントを選択:</p>
                 <div className="max-h-32 overflow-y-auto space-y-1 border rounded p-2">
