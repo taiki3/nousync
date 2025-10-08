@@ -3,8 +3,13 @@ import { getUserIdFromRequest } from '../../../lib/auth.js'
 import { withRls } from '../../../lib/db.js'
 import OpenAI from 'openai'
 
+// OpenAI APIキーの確認
+if (!process.env.OPENAI_API_KEY) {
+  console.error('OPENAI_API_KEY is not set in environment variables')
+}
+
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+  apiKey: process.env.OPENAI_API_KEY || 'dummy-key-for-error-handling',
 })
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -105,7 +110,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       console.error('OpenAI API error:', openaiError)
       res.status(500).json({
         status: 'error',
-        error: 'Failed to generate response'
+        error: 'Failed to generate response',
+        details: openaiError?.message || 'Unknown OpenAI error',
+        apiKeyPresent: !!process.env.OPENAI_API_KEY,
+        apiKeyLength: process.env.OPENAI_API_KEY?.length || 0
       })
     }
   } catch (err: any) {
