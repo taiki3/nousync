@@ -1,16 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { getUserIdFromRequest } from '../../../lib/auth.js'
 import { withRls } from '../../../lib/db.js'
-import OpenAI from 'openai'
-
-// OpenAI APIキーの確認
-if (!process.env.OPENAI_API_KEY) {
-  console.error('OPENAI_API_KEY is not set in environment variables')
-}
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || 'dummy-key-for-error-handling',
-})
+import { AIProvider } from '../../../lib/ai-providers.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
@@ -88,28 +79,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    // OpenAI APIを呼び出し
+    // AIプロバイダーを使用してレスポンスを生成
     let assistantMessage = ''
     try {
-      const systemMessage = contextContent
-        ? 'You are a helpful assistant. Use the provided documents as context to answer questions.'
-        : 'You are a helpful assistant.'
+      // モデル一覧を取得してプロバイダーを特定
+      const models = await AIProvider.getAvailableModels()
+      const selectedModel = models.find(m => m.modelId === model)
 
-      const userMessageWithContext = contextContent
-        ? `${contextContent}\n\n質問: ${message}`
-        : message
+      if (!selectedModel) {
+        throw new Error(`Model ${model} not found`)
+      }
 
-      const completion = await openai.chat.completions.create({
-        model: model,
-        messages: [
-          { role: 'system', content: systemMessage },
-          { role: 'user', content: userMessageWithContext }
-        ],
-        temperature: 0.7,
-        max_tokens: 2000,
-      })
+      const systemMessage = 'You are a helpful assistant.'
+      const userMessageContent = message
 
-      assistantMessage = completion.choices[0]?.message?.content || ''
+      const messages = [
+        { role: 'system' as const, content: systemMessage },
+        { role: 'user' as const, content: userMessageContent }
+      ]
+
+      assistantMessage = await AIProvider.createChatCompletion(
+        messages,
+        selectedModel.modelId,
+        selectedModel.provider,
+        contextContent || undefined
+      )
 
       // アシスタントメッセージを保存
       await withRls(userId, async (client) => {
@@ -134,12 +128,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           model: model
         }
       })
-    } catch (openaiError: any) {
-      console.error('OpenAI API error:', openaiError)
+    } catch (aiError: any) {
+      console.error('AI Provider error:', aiError)
       res.status(500).json({
         status: 'error',
         error: 'Failed to generate response',
-        details: openaiError?.message || 'Unknown OpenAI error'
+        details: aiError?.message || 'Unknown AI provider error'
       })
     }
   } catch (err: any) {
