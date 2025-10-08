@@ -3,6 +3,7 @@ import { Edit3, Eye, Plus, Tag, Trash2, X } from 'lucide-react'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { getDocumentTitle } from '../utils/markdown'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
@@ -118,7 +119,7 @@ export default function TextEditor({
     <div className="h-full flex flex-col bg-background overflow-hidden">
       <div className="border-b px-4 py-3 space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">{document.title}</h2>
+          <h2 className="text-lg font-semibold">{getDocumentTitle(document)}</h2>
           {onDocumentDelete && (
             <Button
               size="sm"

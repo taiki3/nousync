@@ -3,6 +3,7 @@ import { FileText, Globe, Plus, Tag } from 'lucide-react'
 import { useState } from 'react'
 import { useApiCall } from '../hooks'
 import { documentsApi } from '../services/api'
+import { getDocumentTitle } from '../utils/markdown'
 import { UserMenu } from './UserMenu'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
@@ -117,8 +118,8 @@ export default function FileExplorer({
               }`}
             >
               <CardHeader className="pb-3">
-                <CardTitle className="text-base truncate pr-2" title={doc.title}>
-                  {doc.title}
+                <CardTitle className="text-base truncate pr-2" title={getDocumentTitle(doc)}>
+                  {getDocumentTitle(doc)}
                 </CardTitle>
                 <CardDescription className="line-clamp-2" title={doc.summary || undefined}>
                   {doc.summary}
