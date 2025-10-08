@@ -231,6 +231,9 @@ export default function ChatWindow({ documents }: ChatWindowProps) {
         }
       }
 
+      const enableStreaming = true // ストリーミングの有効/無効を制御
+      let isStreamingStarted = false
+
       const response = await chatApi.sendMessage(
         {
           conversationId: currentConversationId,
@@ -239,31 +242,36 @@ export default function ChatWindow({ documents }: ChatWindowProps) {
             content: m.content,
           })),
           contextDocuments,
-          stream: true, // ストリーミングを有効化
+          stream: enableStreaming,
           model: selectedModel || undefined,
         },
-        (chunk: string) => {
+        enableStreaming ? (chunk: string) => {
           // ストリーミングコールバック
+          isStreamingStarted = true
           setMessages((prev) => {
             const newMessages = [...prev]
             const lastMessage = newMessages[newMessages.length - 1]
             if (lastMessage && lastMessage.role === 'assistant') {
+              // 既存のアシスタントメッセージに追加
               lastMessage.content += chunk
             } else {
+              // 新しいアシスタントメッセージを作成
               newMessages.push({
-                role: 'assistant',
+                ...assistantMessage,
                 content: chunk
               })
             }
             return newMessages
           })
-        },
+        } : undefined,
         abortController.signal
       )
 
-      // レスポンスをメッセージに追加
-      assistantMessage.content = response.content
-      setMessages((prev) => [...prev, assistantMessage])
+      // ストリーミングが使われなかった場合のみメッセージを追加
+      if (!isStreamingStarted) {
+        assistantMessage.content = response.content
+        setMessages((prev) => [...prev, assistantMessage])
+      }
 
       // 最終的なメッセージを更新
       if (contextDocuments.length > 0) {
