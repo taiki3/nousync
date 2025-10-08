@@ -13,6 +13,11 @@ export interface AIModel {
   displayName: string
 }
 
+// Cloudflare Gateway configuration
+const GATEWAY_URL = process.env.CLOUDFLARE_GATEWAY_URL
+const GATEWAY_TOKEN = process.env.CLOUDFLARE_GATEWAY_TOKEN
+const USE_GATEWAY = !!(GATEWAY_URL && GATEWAY_TOKEN)
+
 // Provider clients (singleton pattern)
 let openaiClient: OpenAI | null = null
 let anthropicClient: Anthropic | null = null
@@ -24,7 +29,19 @@ function getOpenAIClient(): OpenAI {
     if (!apiKey) {
       throw new Error('OpenAI API key not configured')
     }
-    openaiClient = new OpenAI({ apiKey })
+
+    if (USE_GATEWAY) {
+      // Use Cloudflare Gateway as base URL
+      openaiClient = new OpenAI({
+        apiKey,
+        baseURL: `${GATEWAY_URL}/openai`,
+        defaultHeaders: {
+          'cf-aig-authorization': `Bearer ${GATEWAY_TOKEN}`
+        }
+      })
+    } else {
+      openaiClient = new OpenAI({ apiKey })
+    }
   }
   return openaiClient
 }
@@ -35,7 +52,19 @@ function getAnthropicClient(): Anthropic {
     if (!apiKey) {
       throw new Error('Anthropic API key not configured')
     }
-    anthropicClient = new Anthropic({ apiKey })
+
+    if (USE_GATEWAY) {
+      // Use Cloudflare Gateway as base URL
+      anthropicClient = new Anthropic({
+        apiKey,
+        baseURL: `${GATEWAY_URL}/anthropic`,
+        defaultHeaders: {
+          'cf-aig-authorization': `Bearer ${GATEWAY_TOKEN}`
+        }
+      })
+    } else {
+      anthropicClient = new Anthropic({ apiKey })
+    }
   }
   return anthropicClient
 }
@@ -46,6 +75,7 @@ function getGeminiClient(): GoogleGenerativeAI {
     if (!apiKey) {
       throw new Error('Gemini API key not configured')
     }
+    // Note: Gemini SDK doesn't support custom base URL, we'll handle it differently
     geminiClient = new GoogleGenerativeAI(apiKey)
   }
   return geminiClient
@@ -123,6 +153,44 @@ export class AIProvider {
     messages: ChatMessage[],
     modelId: string
   ): Promise<string> {
+    // If using Cloudflare Gateway, make direct HTTP request
+    if (USE_GATEWAY) {
+      const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY
+      if (!apiKey) {
+        throw new Error('Gemini API key not configured')
+      }
+
+      // Convert messages to Gemini format
+      const contents = messages.map(m => ({
+        role: m.role === 'system' ? 'user' : m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }]
+      }))
+
+      const response = await fetch(`${GATEWAY_URL}/google-ai/models/${modelId}:generateContent`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+          'cf-aig-authorization': `Bearer ${GATEWAY_TOKEN}`
+        },
+        body: JSON.stringify({
+          contents,
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 2000,
+          }
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error(`Gemini API error: ${response.statusText}`)
+      }
+
+      const data = await response.json()
+      return data.candidates?.[0]?.content?.parts?.[0]?.text || ''
+    }
+
+    // Fallback to direct SDK usage
     const client = getGeminiClient()
     const model = client.getGenerativeModel({ model: modelId })
 
@@ -193,9 +261,21 @@ export class AIProvider {
       const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY
       if (!apiKey) return []
 
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`
-      )
+      // Use Cloudflare Gateway if configured
+      const url = USE_GATEWAY
+        ? `${GATEWAY_URL}/google-ai/models`
+        : `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`
+
+      const headers: any = {
+        'Content-Type': 'application/json'
+      }
+
+      if (USE_GATEWAY) {
+        headers['Authorization'] = `Bearer ${apiKey}`
+        headers['cf-aig-authorization'] = `Bearer ${GATEWAY_TOKEN}`
+      }
+
+      const response = await fetch(url, { headers })
 
       if (!response.ok) {
         throw new Error('Failed to fetch Gemini models')
