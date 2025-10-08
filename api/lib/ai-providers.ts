@@ -261,9 +261,13 @@ export class AIProvider {
     // Anthropic models - static list (no list API available)
     if (process.env.ANTHROPIC_API_KEY) {
       models.push(
+        { provider: 'anthropic', modelId: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5' },
+        { provider: 'anthropic', modelId: 'claude-sonnet-4-20250514', displayName: 'Claude Sonnet 4' },
+        { provider: 'anthropic', modelId: 'claude-3-7-sonnet-latest', displayName: 'Claude 3.7 Sonnet Latest' },
+        { provider: 'anthropic', modelId: 'claude-opus-4-1-20250805', displayName: 'Claude Opus 4.1' },
+        { provider: 'anthropic', modelId: 'claude-opus-4-20250514', displayName: 'Claude Opus 4' },
         { provider: 'anthropic', modelId: 'claude-3-5-sonnet-20241022', displayName: 'Claude 3.5 Sonnet' },
         { provider: 'anthropic', modelId: 'claude-3-opus-20240229', displayName: 'Claude 3 Opus' },
-        { provider: 'anthropic', modelId: 'claude-3-sonnet-20240229', displayName: 'Claude 3 Sonnet' },
         { provider: 'anthropic', modelId: 'claude-3-haiku-20240307', displayName: 'Claude 3 Haiku' }
       )
     }
