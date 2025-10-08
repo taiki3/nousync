@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { withRls } from './lib/db.js'
+import { withRls, withRlsRead } from './lib/db.js'
 import { getUserIdFromRequest } from './lib/auth.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -11,7 +11,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // 一覧 or 単一
       const id = req.query?.id as string | undefined
       if (id) {
-        const rows = await withRls(userId, (client) =>
+        const rows = await withRlsRead(userId, (client) =>
           client.query(
             `SELECT id::text, user_id::text, project_id::text, title, content, summary, tags,
                     file_name, file_size, mime_type,
@@ -27,8 +27,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
         res.status(200).json({ status: 'success', data: (rows as any).rows[0] })
       } else {
-        // 一覧取得（完全なデータ）
-        const rows = await withRls(userId, (client) =>
+        // 一覧取得（読み取り専用の軽量版を使用）
+        const rows = await withRlsRead(userId, (client) =>
           client.query(
             `SELECT id::text, user_id::text, project_id::text, title, content, summary, tags,
                     file_name, file_size, mime_type,
