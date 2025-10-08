@@ -84,10 +84,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [])
 
   const login = async () => {
+    // 現在のURLをそのまま使用（プレビューデプロイメントでも動作）
+    const currentUrl = window.location.href.split('#')[0] // ハッシュを除去
+    const redirectUrl = currentUrl.endsWith('/') ? currentUrl : currentUrl + '/'
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: window.location.origin,
+        redirectTo: redirectUrl,
       },
     })
     if (error) {
