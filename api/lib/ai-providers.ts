@@ -149,22 +149,103 @@ export class AIProvider {
   }
 
   /**
+   * Fetch OpenAI models dynamically
+   */
+  private static async fetchOpenAIModels(): Promise<AIModel[]> {
+    try {
+      const client = getOpenAIClient()
+      const response = await client.models.list()
+
+      // Filter for chat models only
+      const chatModels = response.data
+        .filter(model =>
+          model.id.includes('gpt') &&
+          !model.id.includes('instruct') &&
+          !model.id.includes('vision')
+        )
+        .map(model => ({
+          provider: 'openai',
+          modelId: model.id,
+          displayName: model.id.split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ')
+        }))
+
+      return chatModels.length > 0 ? chatModels : this.getDefaultOpenAIModels()
+    } catch (error) {
+      console.error('Failed to fetch OpenAI models:', error)
+      return this.getDefaultOpenAIModels()
+    }
+  }
+
+  private static getDefaultOpenAIModels(): AIModel[] {
+    return [
+      { provider: 'openai', modelId: 'gpt-4o', displayName: 'GPT-4o' },
+      { provider: 'openai', modelId: 'gpt-4o-mini', displayName: 'GPT-4o Mini' },
+      { provider: 'openai', modelId: 'gpt-4-turbo', displayName: 'GPT-4 Turbo' },
+      { provider: 'openai', modelId: 'gpt-3.5-turbo', displayName: 'GPT-3.5 Turbo' }
+    ]
+  }
+
+  /**
+   * Fetch Gemini models dynamically
+   */
+  private static async fetchGeminiModels(): Promise<AIModel[]> {
+    try {
+      const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY
+      if (!apiKey) return []
+
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`
+      )
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch Gemini models')
+      }
+
+      const data = await response.json()
+
+      if (data?.models) {
+        return data.models
+          .filter((model: any) =>
+            model.supportedGenerationMethods?.includes('generateContent') &&
+            !model.name?.includes('embedding')
+          )
+          .map((model: any) => ({
+            provider: 'google',
+            modelId: model.name.replace('models/', ''),
+            displayName: model.displayName || model.name
+          }))
+      }
+
+      return this.getDefaultGeminiModels()
+    } catch (error) {
+      console.error('Failed to fetch Gemini models:', error)
+      return this.getDefaultGeminiModels()
+    }
+  }
+
+  private static getDefaultGeminiModels(): AIModel[] {
+    return [
+      { provider: 'google', modelId: 'gemini-1.5-pro', displayName: 'Gemini 1.5 Pro' },
+      { provider: 'google', modelId: 'gemini-1.5-flash', displayName: 'Gemini 1.5 Flash' },
+      { provider: 'google', modelId: 'gemini-pro', displayName: 'Gemini Pro' }
+    ]
+  }
+
+  /**
    * Get available models for all configured providers
+   * OpenAI and Gemini: Dynamic fetch with fallback
+   * Anthropic: Static list (no API available)
    */
   static async getAvailableModels(): Promise<AIModel[]> {
     const models: AIModel[] = []
 
-    // OpenAI models
+    // OpenAI models - try dynamic fetch
     if (process.env.OPENAI_API_KEY) {
-      models.push(
-        { provider: 'openai', modelId: 'gpt-4o', displayName: 'GPT-4o' },
-        { provider: 'openai', modelId: 'gpt-4o-mini', displayName: 'GPT-4o Mini' },
-        { provider: 'openai', modelId: 'gpt-4-turbo', displayName: 'GPT-4 Turbo' },
-        { provider: 'openai', modelId: 'gpt-3.5-turbo', displayName: 'GPT-3.5 Turbo' }
-      )
+      const openaiModels = await this.fetchOpenAIModels()
+      models.push(...openaiModels)
     }
 
-    // Anthropic models
+    // Anthropic models - static list (no list API available)
     if (process.env.ANTHROPIC_API_KEY) {
       models.push(
         { provider: 'anthropic', modelId: 'claude-3-5-sonnet-20241022', displayName: 'Claude 3.5 Sonnet' },
@@ -174,13 +255,10 @@ export class AIProvider {
       )
     }
 
-    // Gemini models
+    // Gemini models - try dynamic fetch
     if (process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY) {
-      models.push(
-        { provider: 'google', modelId: 'gemini-1.5-pro', displayName: 'Gemini 1.5 Pro' },
-        { provider: 'google', modelId: 'gemini-1.5-flash', displayName: 'Gemini 1.5 Flash' },
-        { provider: 'google', modelId: 'gemini-pro', displayName: 'Gemini Pro' }
-      )
+      const geminiModels = await this.fetchGeminiModels()
+      models.push(...geminiModels)
     }
 
     return models
