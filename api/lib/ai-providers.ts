@@ -115,12 +115,22 @@ export class AIProvider {
   ): Promise<string> {
     const client = getOpenAIClient()
 
-    const completion = await client.chat.completions.create({
+    // Use max_completion_tokens for newer models (gpt-4o, etc)
+    // and max_tokens for older models
+    const params: any = {
       model: modelId,
       messages: messages as any,
       temperature: 0.7,
-      max_tokens: 2000,
-    })
+    }
+
+    // Newer models like gpt-4o use max_completion_tokens
+    if (modelId.includes('gpt-4o') || modelId.includes('gpt-4-turbo')) {
+      params.max_completion_tokens = 2000
+    } else {
+      params.max_tokens = 2000
+    }
+
+    const completion = await client.chat.completions.create(params)
 
     return completion.choices[0]?.message?.content || ''
   }
