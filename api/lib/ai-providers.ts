@@ -109,6 +109,36 @@ export class AIProvider {
     }
   }
 
+  /**
+   * Create streaming chat completion with specified provider and model
+   */
+  static async *createChatCompletionStream(
+    messages: ChatMessage[],
+    modelId: string,
+    provider: string,
+    contextDocuments?: string
+  ): AsyncGenerator<string, void, unknown> {
+    // Add context to system message if provided
+    const systemMessage = messages.find(m => m.role === 'system')
+    if (contextDocuments && systemMessage) {
+      systemMessage.content = `${systemMessage.content}\n\nHere are the relevant documents:\n\n${contextDocuments}\n\nPlease answer based on these documents.`
+    }
+
+    switch (provider) {
+      case 'openai':
+        yield* this.createOpenAIStream(messages, modelId)
+        break
+      case 'anthropic':
+        yield* this.createAnthropicStream(messages, modelId)
+        break
+      case 'google':
+        yield* this.createGeminiStream(messages, modelId)
+        break
+      default:
+        throw new Error(`Provider ${provider} not supported`)
+    }
+  }
+
   private static async createOpenAICompletion(
     messages: ChatMessage[],
     modelId: string
@@ -135,6 +165,35 @@ export class AIProvider {
     return completion.choices[0]?.message?.content || ''
   }
 
+  private static async *createOpenAIStream(
+    messages: ChatMessage[],
+    modelId: string
+  ): AsyncGenerator<string, void, unknown> {
+    const client = getOpenAIClient()
+
+    const params: any = {
+      model: modelId,
+      messages: messages as any,
+      temperature: 0.7,
+      stream: true,
+    }
+
+    if (modelId.includes('gpt-4o') || modelId.includes('gpt-4-turbo')) {
+      params.max_completion_tokens = 2000
+    } else {
+      params.max_tokens = 2000
+    }
+
+    const stream = await client.chat.completions.create(params)
+
+    for await (const chunk of stream) {
+      const content = chunk.choices[0]?.delta?.content
+      if (content) {
+        yield content
+      }
+    }
+  }
+
   private static async createAnthropicCompletion(
     messages: ChatMessage[],
     modelId: string
@@ -157,6 +216,34 @@ export class AIProvider {
     })
 
     return response.content[0]?.type === 'text' ? response.content[0].text : ''
+  }
+
+  private static async *createAnthropicStream(
+    messages: ChatMessage[],
+    modelId: string
+  ): AsyncGenerator<string, void, unknown> {
+    const client = getAnthropicClient()
+
+    const systemMessage = messages.find(m => m.role === 'system')?.content || ''
+    const userMessages = messages.filter(m => m.role !== 'system')
+
+    const stream = await client.messages.create({
+      model: modelId,
+      max_tokens: 2000,
+      temperature: 0.7,
+      system: systemMessage,
+      messages: userMessages.map(m => ({
+        role: m.role === 'user' ? 'user' : 'assistant',
+        content: m.content,
+      })) as any,
+      stream: true,
+    })
+
+    for await (const chunk of stream) {
+      if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
+        yield chunk.delta.text
+      }
+    }
   }
 
   private static async createGeminiCompletion(
@@ -224,6 +311,98 @@ export class AIProvider {
     const result = await chat.sendMessage(lastMessage.content)
 
     return result.response.text()
+  }
+
+  private static async *createGeminiStream(
+    messages: ChatMessage[],
+    modelId: string
+  ): AsyncGenerator<string, void, unknown> {
+    // If using Cloudflare Gateway, streaming via HTTP
+    if (USE_GATEWAY) {
+      const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY
+      if (!apiKey) {
+        throw new Error('Gemini API key not configured')
+      }
+
+      const contents = messages.map(m => ({
+        role: m.role === 'system' ? 'user' : m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }]
+      }))
+
+      const response = await fetch(`${GATEWAY_URL}/google-ai/models/${modelId}:streamGenerateContent`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+          'cf-aig-authorization': `Bearer ${GATEWAY_TOKEN}`
+        },
+        body: JSON.stringify({
+          contents,
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 2000,
+          }
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error(`Gemini API error: ${response.statusText}`)
+      }
+
+      const reader = response.body?.getReader()
+      if (!reader) throw new Error('No response body')
+
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6))
+              const text = data.candidates?.[0]?.content?.parts?.[0]?.text
+              if (text) yield text
+            } catch (e) {
+              // Skip invalid JSON
+            }
+          }
+        }
+      }
+    } else {
+      // Fallback to SDK streaming
+      const client = getGeminiClient()
+      const model = client.getGenerativeModel({ model: modelId })
+
+      const history = messages
+        .filter(m => m.role !== 'system')
+        .map(m => ({
+          role: m.role === 'user' ? 'user' : 'model',
+          parts: [{ text: m.content }],
+        }))
+
+      const chat = model.startChat({
+        history: history.slice(0, -1),
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 2000,
+        },
+      })
+
+      const lastMessage = messages[messages.length - 1]
+      const result = await chat.sendMessageStream(lastMessage.content)
+
+      for await (const chunk of result.stream) {
+        const text = chunk.text()
+        if (text) yield text
+      }
+    }
   }
 
   /**

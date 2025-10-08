@@ -64,7 +64,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    // Generate AI response
+    // Generate AI response with streaming
     try {
       const models = await AIProvider.getAvailableModels()
       const selectedModel = models.find(m => m.modelId === model)
@@ -78,35 +78,58 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         { role: 'user' as const, content: message }
       ]
 
-      const assistantMessage = await AIProvider.createChatCompletion(
-        messages,
-        selectedModel.modelId,
-        selectedModel.provider,
-        contextContent || undefined
-      )
+      // Set up SSE headers for streaming
+      res.setHeader('Content-Type', 'text/event-stream')
+      res.setHeader('Cache-Control', 'no-cache')
+      res.setHeader('Connection', 'keep-alive')
+      res.setHeader('Access-Control-Allow-Origin', '*')
 
-      // Save assistant message
-      await withRls(userId, async (client) => {
-        await client.query(
-          `INSERT INTO messages (conversation_id, role, content)
-           VALUES ($1, 'assistant', $2)`,
-          [conversationId, assistantMessage]
-        )
+      // Stream the response
+      let fullResponse = ''
 
-        await client.query(
-          'UPDATE conversations SET updated_at = NOW() WHERE id = $1',
-          [conversationId]
-        )
-      })
-
-      res.status(200).json({
-        status: 'success',
-        data: {
-          response: assistantMessage,
-          conversationId: conversationId,
-          model: model
+      try {
+        for await (const chunk of AIProvider.createChatCompletionStream(
+          messages,
+          selectedModel.modelId,
+          selectedModel.provider,
+          contextContent || undefined
+        )) {
+          fullResponse += chunk
+          // Send chunk as SSE
+          res.write(`data: ${JSON.stringify({ type: 'chunk', content: chunk })}\n\n`)
         }
-      })
+
+        // Save the complete message to database
+        await withRls(userId, async (client) => {
+          await client.query(
+            `INSERT INTO messages (conversation_id, role, content)
+             VALUES ($1, 'assistant', $2)`,
+            [conversationId, fullResponse]
+          )
+
+          await client.query(
+            'UPDATE conversations SET updated_at = NOW() WHERE id = $1',
+            [conversationId]
+          )
+        })
+
+        // Send completion event
+        res.write(`data: ${JSON.stringify({
+          type: 'done',
+          fullResponse,
+          conversationId,
+          model
+        })}\n\n`)
+
+      } catch (streamError: any) {
+        // Send error event
+        res.write(`data: ${JSON.stringify({
+          type: 'error',
+          error: streamError.message
+        })}\n\n`)
+      }
+
+      res.end()
     } catch (aiError: any) {
       console.error('AI Provider error:', aiError)
       res.status(500).json({

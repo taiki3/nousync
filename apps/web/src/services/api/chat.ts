@@ -115,27 +115,33 @@ export const chatApi = {
       let fullContent = ''
 
       if (reader) {
+        let buffer = ''
         try {
           while (true) {
             const { done, value } = await reader.read()
             if (done) break
 
-            const chunk = decoder.decode(value, { stream: true })
-            const lines = chunk.split('\n')
+            buffer += decoder.decode(value, { stream: true })
+            const lines = buffer.split('\n')
+            buffer = lines.pop() || ''
 
             for (const line of lines) {
               if (line.startsWith('data: ')) {
-                const data = line.slice(6)
-                if (data === '[DONE]') continue
+                const data = line.slice(6).trim()
+                if (!data || data === '[DONE]') continue
 
                 try {
                   const parsed = JSON.parse(data)
-                  if (parsed.content) {
+                  if (parsed.type === 'chunk' && parsed.content) {
                     fullContent += parsed.content
                     onChunk(parsed.content)
+                  } else if (parsed.type === 'done') {
+                    fullContent = parsed.fullResponse || fullContent
+                  } else if (parsed.type === 'error') {
+                    throw new Error(parsed.error || 'Stream error')
                   }
-                } catch (_e) {
-                  // Continue processing other lines
+                } catch (e) {
+                  console.error('Failed to parse SSE data:', e)
                 }
               }
             }
