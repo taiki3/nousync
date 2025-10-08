@@ -85,10 +85,10 @@ export const chatApi = {
 
     // Convert to backend format
     const messageData = {
-      content: lastUserMessage.content,
+      message: lastUserMessage.content,  // APIは 'message' フィールドを期待
       useRAG: !!contextDocuments && contextDocuments.length > 0,
-      modelId: model,
-      // Don't send stream parameter to backend
+      model: model,  // 'modelId' ではなく 'model'
+      documentIds: contextDocuments?.map(doc => doc.id) || []
     }
 
     if (request.stream && onChunk) {
