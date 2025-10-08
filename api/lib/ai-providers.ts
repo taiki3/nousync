@@ -205,11 +205,24 @@ export class AIProvider {
 
       if (data?.models) {
         return data.models
-          .filter((model: any) =>
-            model.supportedGenerationMethods?.includes('generateContent') &&
-            !model.name?.includes('embedding') &&
-            (model.name?.includes('2.5') || model.name?.includes('2-5'))  // Gemini 2.5系のみ
-          )
+          .filter((model: any) => {
+            const name = model.name?.toLowerCase() || ''
+            const supportedMethods = model.supportedGenerationMethods || []
+
+            // チャットモデルのみを選択（Gemini Pro、Flash、Ultraなど）
+            const isChatModel = supportedMethods.includes('generateContent') &&
+              !name.includes('embedding') &&
+              !name.includes('aqa') &&  // AQA (Attributed Question Answering) モデルを除外
+              !name.includes('nano') &&  // Nanoモデルを除外
+              (
+                name.includes('gemini-pro') ||
+                name.includes('gemini-flash') ||
+                name.includes('gemini-ultra') ||
+                (name.includes('gemini') && (name.includes('2.5') || name.includes('2-5')))
+              )
+
+            return isChatModel
+          })
           .map((model: any) => ({
             provider: 'google',
             modelId: model.name.replace('models/', ''),
