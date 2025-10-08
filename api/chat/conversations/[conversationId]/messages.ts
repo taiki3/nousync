@@ -24,10 +24,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body || {}
+
+    // デバッグ: リクエストボディを確認
+    console.log('Request body type:', typeof req.body)
+    console.log('Request body:', JSON.stringify(body))
+
     const { message, model = 'gpt-4o-mini', documentIds = [] } = body
 
     if (!message) {
-      res.status(400).json({ status: 'error', error: 'Message is required' })
+      res.status(400).json({
+        status: 'error',
+        error: 'Message is required',
+        debug: {
+          bodyType: typeof req.body,
+          bodyKeys: Object.keys(body),
+          body: body
+        }
+      })
       return
     }
 
