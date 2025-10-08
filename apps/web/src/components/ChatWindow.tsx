@@ -20,6 +20,7 @@ import { Badge } from './ui/badge'
 import { Button } from './ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
 import { Textarea } from './ui/textarea'
+import { MarkdownMessage } from './MarkdownMessage'
 
 interface ChatWindowProps {
   documents: Document[]
@@ -48,7 +49,14 @@ const MessageItem = memo(
                 message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'
               }`}
             >
-              <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+              {message.role === 'assistant' ? (
+                <MarkdownMessage
+                  content={message.content}
+                  className={`text-sm ${message.role === 'user' ? 'prose-invert' : ''}`}
+                />
+              ) : (
+                <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+              )}
             </div>
           </div>
         </div>
