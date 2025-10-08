@@ -87,7 +87,8 @@ export const chatApi = {
     const messageData = {
       message: lastUserMessage.content,  // APIは 'message' フィールドを期待
       model: model,  // 'modelId' ではなく 'model'
-      documentIds: contextDocuments?.map(doc => doc.id) || []  // 全文コンテキスト用
+      documentIds: contextDocuments?.map(doc => doc.id) || [],  // 全文コンテキスト用
+      stream: request.stream || false  // ストリーミングフラグを追加
     }
 
     if (request.stream && onChunk) {

@@ -239,11 +239,26 @@ export default function ChatWindow({ documents }: ChatWindowProps) {
             content: m.content,
           })),
           contextDocuments,
-          stream: false, // ストリーミングを無効化
+          stream: true, // ストリーミングを有効化
           model: selectedModel || undefined,
         },
-        undefined, // ストリーミングコールバックは不要
-        abortController.signal,
+        (chunk: string) => {
+          // ストリーミングコールバック
+          setMessages((prev) => {
+            const newMessages = [...prev]
+            const lastMessage = newMessages[newMessages.length - 1]
+            if (lastMessage && lastMessage.role === 'assistant') {
+              lastMessage.content += chunk
+            } else {
+              newMessages.push({
+                role: 'assistant',
+                content: chunk
+              })
+            }
+            return newMessages
+          })
+        },
+        abortController.signal
       )
 
       // レスポンスをメッセージに追加

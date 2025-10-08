@@ -20,7 +20,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body || {}
-    const { message, model = 'gpt-4o-mini', documentIds = [] } = body
+    const { message, model = 'gpt-4o-mini', documentIds = [], stream = false } = body
 
     if (!message) {
       res.status(400).json({ status: 'error', error: 'Message is required' })
@@ -64,7 +64,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    // Generate AI response with streaming
+    // Generate AI response
     try {
       const models = await AIProvider.getAvailableModels()
       const selectedModel = models.find(m => m.modelId === model)
@@ -78,33 +78,78 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         { role: 'user' as const, content: message }
       ]
 
-      // Set up SSE headers for streaming
-      res.setHeader('Content-Type', 'text/event-stream')
-      res.setHeader('Cache-Control', 'no-cache')
-      res.setHeader('Connection', 'keep-alive')
-      res.setHeader('Access-Control-Allow-Origin', '*')
+      // Check if streaming is requested
+      if (stream) {
+        // Set up SSE headers for streaming
+        res.writeHead(200, {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+          'Access-Control-Allow-Origin': '*',
+          'X-Accel-Buffering': 'no', // Disable Nginx buffering
+        })
 
-      // Stream the response
-      let fullResponse = ''
+        let fullResponse = ''
 
-      try {
-        for await (const chunk of AIProvider.createChatCompletionStream(
+        try {
+          for await (const chunk of AIProvider.createChatCompletionStream(
+            messages,
+            selectedModel.modelId,
+            selectedModel.provider,
+            contextContent || undefined
+          )) {
+            fullResponse += chunk
+            // Send chunk as SSE
+            res.write(`data: ${JSON.stringify({ type: 'chunk', content: chunk })}\n\n`)
+          }
+
+          // Save the complete message to database
+          await withRls(userId, async (client) => {
+            await client.query(
+              `INSERT INTO messages (conversation_id, role, content)
+               VALUES ($1, 'assistant', $2)`,
+              [conversationId, fullResponse]
+            )
+
+            await client.query(
+              'UPDATE conversations SET updated_at = NOW() WHERE id = $1',
+              [conversationId]
+            )
+          })
+
+          // Send completion event
+          res.write(`data: ${JSON.stringify({
+            type: 'done',
+            fullResponse,
+            conversationId,
+            model
+          })}\n\n`)
+
+        } catch (streamError: any) {
+          console.error('Streaming error:', streamError)
+          // Send error event
+          res.write(`data: ${JSON.stringify({
+            type: 'error',
+            error: streamError.message
+          })}\n\n`)
+        }
+
+        res.end()
+      } else {
+        // Non-streaming response
+        const assistantMessage = await AIProvider.createChatCompletion(
           messages,
           selectedModel.modelId,
           selectedModel.provider,
           contextContent || undefined
-        )) {
-          fullResponse += chunk
-          // Send chunk as SSE
-          res.write(`data: ${JSON.stringify({ type: 'chunk', content: chunk })}\n\n`)
-        }
+        )
 
-        // Save the complete message to database
+        // Save assistant message
         await withRls(userId, async (client) => {
           await client.query(
             `INSERT INTO messages (conversation_id, role, content)
              VALUES ($1, 'assistant', $2)`,
-            [conversationId, fullResponse]
+            [conversationId, assistantMessage]
           )
 
           await client.query(
@@ -113,23 +158,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           )
         })
 
-        // Send completion event
-        res.write(`data: ${JSON.stringify({
-          type: 'done',
-          fullResponse,
-          conversationId,
-          model
-        })}\n\n`)
-
-      } catch (streamError: any) {
-        // Send error event
-        res.write(`data: ${JSON.stringify({
-          type: 'error',
-          error: streamError.message
-        })}\n\n`)
+        res.status(200).json({
+          status: 'success',
+          data: {
+            response: assistantMessage,
+            conversationId: conversationId,
+            model: model
+          }
+        })
       }
-
-      res.end()
     } catch (aiError: any) {
       console.error('AI Provider error:', aiError)
       res.status(500).json({
@@ -139,6 +176,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })
     }
   } catch (err: any) {
+    console.error('Handler error:', err)
     const status = err?.statusCode || 500
     res.status(status).json({ status: 'error', error: err?.message || 'Internal error' })
   }
