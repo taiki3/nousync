@@ -207,7 +207,8 @@ export class AIProvider {
         return data.models
           .filter((model: any) =>
             model.supportedGenerationMethods?.includes('generateContent') &&
-            !model.name?.includes('embedding')
+            !model.name?.includes('embedding') &&
+            (model.name?.includes('2.5') || model.name?.includes('2-5'))  // Gemini 2.5系のみ
           )
           .map((model: any) => ({
             provider: 'google',
@@ -225,9 +226,8 @@ export class AIProvider {
 
   private static getDefaultGeminiModels(): AIModel[] {
     return [
-      { provider: 'google', modelId: 'gemini-1.5-pro', displayName: 'Gemini 1.5 Pro' },
-      { provider: 'google', modelId: 'gemini-1.5-flash', displayName: 'Gemini 1.5 Flash' },
-      { provider: 'google', modelId: 'gemini-pro', displayName: 'Gemini Pro' }
+      { provider: 'google', modelId: 'gemini-2.5-flash', displayName: 'Gemini 2.5 Flash' },
+      { provider: 'google', modelId: 'gemini-2.5-pro', displayName: 'Gemini 2.5 Pro' }
     ]
   }
 
