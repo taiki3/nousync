@@ -549,4 +549,74 @@ export class AIProvider {
 
     return models
   }
+
+  /**
+   * Create research with Gemini using Google Search grounding
+   * This enables the model to search the web and provide cited answers
+   */
+  static async createResearchWithGemini(
+    topic: string,
+    depth: 'shallow' | 'medium' | 'deep',
+    modelId: 'gemini-2.5-flash' | 'gemini-2.5-pro',
+    existingContext?: string
+  ): Promise<{ content: string; sources: Array<{ url: string; title: string }> }> {
+    const client = getGeminiClient()
+
+    // Use specified Gemini model for research (both support grounding)
+    const model = client.getGenerativeModel({
+      model: modelId,
+      tools: [{
+        googleSearch: {}
+      }]
+    })
+
+    const depthInstructions = {
+      shallow: 'Provide a brief overview with key points (around 300-500 words).',
+      medium: 'Provide a comprehensive analysis with detailed information (around 800-1200 words).',
+      deep: 'Provide an in-depth, thorough research with multiple perspectives, examples, and references (around 1500-2500 words).'
+    }
+
+    const instruction = depthInstructions[depth] || depthInstructions.medium
+
+    let prompt = `You are a research assistant with access to web search. Create a comprehensive research document on the following topic:
+
+Topic: ${topic}
+
+${instruction}
+
+Structure your response as a well-organized document with:
+1. Clear title
+2. Executive summary
+3. Main sections with headings
+4. Key findings and insights
+5. Conclusion
+6. References (cite your sources from web search)
+
+Please provide the research in markdown format with proper citations.`
+
+    if (existingContext) {
+      prompt += `\n\nExisting related documents for context:\n${existingContext}`
+    }
+
+    const result = await model.generateContent(prompt)
+    const content = result.response.text()
+
+    // Extract grounding metadata for sources
+    const sources: Array<{ url: string; title: string }> = []
+    const candidate = (result.response as any).candidates?.[0]
+    const groundingMetadata = candidate?.groundingMetadata
+
+    if (groundingMetadata?.groundingChunks) {
+      for (const chunk of groundingMetadata.groundingChunks) {
+        if (chunk.web?.uri && chunk.web?.title) {
+          sources.push({
+            url: chunk.web.uri,
+            title: chunk.web.title
+          })
+        }
+      }
+    }
+
+    return { content, sources }
+  }
 }

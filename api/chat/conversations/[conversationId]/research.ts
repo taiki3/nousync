@@ -24,7 +24,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       topic,
       existingDocuments = [],
       depth = 'medium',
-      modelId = 'gpt-4o'
+      modelId = 'gemini-2.5-flash'
     } = body
 
     if (!topic) {
@@ -43,15 +43,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         throw Object.assign(new Error('Conversation not found'), { statusCode: 404 })
       }
     })
-
-    // Determine research depth and create appropriate prompt
-    const depthInstructions = {
-      shallow: 'Provide a brief overview with key points (around 300-500 words).',
-      medium: 'Provide a comprehensive analysis with detailed information (around 800-1200 words).',
-      deep: 'Provide an in-depth, thorough research with multiple perspectives, examples, and references (around 1500-2500 words).'
-    }
-
-    const instruction = depthInstructions[depth as keyof typeof depthInstructions] || depthInstructions.medium
 
     // Build context from existing documents if provided
     let existingContext = ''
@@ -72,52 +63,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    // Create research prompt
-    const researchPrompt = `You are a research assistant. Create a comprehensive research document on the following topic:
-
-Topic: ${topic}
-
-${instruction}
-
-Structure your response as a well-organized document with:
-1. Clear title
-2. Executive summary
-3. Main sections with headings
-4. Key findings and insights
-5. Conclusion
-
-${existingContext}
-
-Please provide the research in markdown format.`
-
-    // Generate research using AI
-    const models = await AIProvider.getAvailableModels()
-    const selectedModel = models.find(m => m.modelId === modelId)
-
-    if (!selectedModel) {
-      throw new Error(`Model ${modelId} not found`)
+    // Validate model ID
+    if (modelId !== 'gemini-2.5-flash' && modelId !== 'gemini-2.5-pro') {
+      res.status(400).json({
+        status: 'error',
+        error: 'Invalid model ID. Must be gemini-2.5-flash or gemini-2.5-pro'
+      })
+      return
     }
 
-    const messages = [
-      { role: 'system' as const, content: 'You are an expert research assistant that creates comprehensive, well-structured research documents.' },
-      { role: 'user' as const, content: researchPrompt }
-    ]
-
-    const researchContent = await AIProvider.createChatCompletion(
-      messages,
-      selectedModel.modelId,
-      selectedModel.provider
+    // Generate research using Gemini with Google Search
+    const { content: researchContent, sources } = await AIProvider.createResearchWithGemini(
+      topic,
+      depth as 'shallow' | 'medium' | 'deep',
+      modelId as 'gemini-2.5-flash' | 'gemini-2.5-pro',
+      existingContext || undefined
     )
 
+    // Append sources to the research content
+    let finalContent = researchContent
+    if (sources.length > 0) {
+      finalContent += '\n\n## Sources\n\n'
+      sources.forEach((source, index) => {
+        finalContent += `${index + 1}. [${source.title}](${source.url})\n`
+      })
+    }
+
     // Extract title from the research content (first heading or use topic)
-    const titleMatch = researchContent.match(/^#\s+(.+)$/m)
+    const titleMatch = finalContent.match(/^#\s+(.+)$/m)
     const title = titleMatch ? titleMatch[1] : `Research: ${topic}`
 
     // Generate a summary (first paragraph or extract from content)
-    const summaryMatch = researchContent.match(/(?:##?\s+(?:Executive Summary|Summary|Introduction)[^\n]*\n+)([^\n#]+(?:\n[^\n#]+)*)/i)
+    const summaryMatch = finalContent.match(/(?:##?\s+(?:Executive Summary|Summary|Introduction)[^\n]*\n+)([^\n#]+(?:\n[^\n#]+)*)/i)
     const summary = summaryMatch
       ? summaryMatch[1].trim().substring(0, 500)
-      : researchContent.substring(0, 500).trim()
+      : finalContent.substring(0, 500).trim()
 
     // Save research as a document
     const documentId = await withRls(userId, async (client) => {
@@ -125,7 +105,7 @@ Please provide the research in markdown format.`
         `INSERT INTO documents (user_id, title, content, summary, tags)
          VALUES ($1, $2, $3, $4, $5)
          RETURNING id`,
-        [userId, title, researchContent, summary, ['research', 'ai-generated', depth]]
+        [userId, title, finalContent, summary, ['research', 'ai-generated', depth]]
       )
 
       // Link document to conversation
