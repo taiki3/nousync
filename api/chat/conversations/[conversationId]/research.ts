@@ -105,7 +105,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         `INSERT INTO documents (user_id, title, content, summary, tags)
          VALUES ($1, $2, $3, $4, $5)
          RETURNING id`,
-        [userId, title, finalContent, summary, ['research', 'ai-generated', depth]]
+        [userId, title, finalContent, summary, JSON.stringify(['research', 'ai-generated', depth])]
       )
 
       // Link document to conversation
