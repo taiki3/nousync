@@ -122,10 +122,10 @@ Please provide the research in markdown format.`
     // Save research as a document
     const documentId = await withRls(userId, async (client) => {
       const { rows } = await client.query(
-        `INSERT INTO documents (title, content, tags)
-         VALUES ($1, $2, $3)
+        `INSERT INTO documents (user_id, title, content, summary, tags)
+         VALUES ($1, $2, $3, $4, $5)
          RETURNING id`,
-        [title, researchContent, ['research', 'ai-generated', depth]]
+        [userId, title, researchContent, summary, ['research', 'ai-generated', depth]]
       )
 
       // Link document to conversation
