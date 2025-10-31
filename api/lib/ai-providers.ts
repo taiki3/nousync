@@ -557,13 +557,14 @@ export class AIProvider {
   static async createResearchWithGemini(
     topic: string,
     depth: 'shallow' | 'medium' | 'deep',
+    modelId: 'gemini-2.5-flash' | 'gemini-2.5-pro',
     existingContext?: string
-  ): Promise<string> {
+  ): Promise<{ content: string; sources: Array<{ url: string; title: string }> }> {
     const client = getGeminiClient()
 
-    // Use Gemini 2.5 Flash for research (it supports grounding)
+    // Use specified Gemini model for research (both support grounding)
     const model = client.getGenerativeModel({
-      model: 'gemini-2.5-flash',
+      model: modelId,
       tools: [{
         googleSearch: {}
       }]
@@ -598,6 +599,24 @@ Please provide the research in markdown format with proper citations.`
     }
 
     const result = await model.generateContent(prompt)
-    return result.response.text()
+    const content = result.response.text()
+
+    // Extract grounding metadata for sources
+    const sources: Array<{ url: string; title: string }> = []
+    const candidate = (result.response as any).candidates?.[0]
+    const groundingMetadata = candidate?.groundingMetadata
+
+    if (groundingMetadata?.groundingChunks) {
+      for (const chunk of groundingMetadata.groundingChunks) {
+        if (chunk.web?.uri && chunk.web?.title) {
+          sources.push({
+            url: chunk.web.uri,
+            title: chunk.web.title
+          })
+        }
+      }
+    }
+
+    return { content, sources }
   }
 }

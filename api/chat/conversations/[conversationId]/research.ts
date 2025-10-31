@@ -23,7 +23,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const {
       topic,
       existingDocuments = [],
-      depth = 'medium'
+      depth = 'medium',
+      modelId = 'gemini-2.5-flash'
     } = body
 
     if (!topic) {
@@ -62,22 +63,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
+    // Validate model ID
+    if (modelId !== 'gemini-2.5-flash' && modelId !== 'gemini-2.5-pro') {
+      res.status(400).json({
+        status: 'error',
+        error: 'Invalid model ID. Must be gemini-2.5-flash or gemini-2.5-pro'
+      })
+      return
+    }
+
     // Generate research using Gemini with Google Search
-    const researchContent = await AIProvider.createResearchWithGemini(
+    const { content: researchContent, sources } = await AIProvider.createResearchWithGemini(
       topic,
       depth as 'shallow' | 'medium' | 'deep',
+      modelId as 'gemini-2.5-flash' | 'gemini-2.5-pro',
       existingContext || undefined
     )
 
+    // Append sources to the research content
+    let finalContent = researchContent
+    if (sources.length > 0) {
+      finalContent += '\n\n## Sources\n\n'
+      sources.forEach((source, index) => {
+        finalContent += `${index + 1}. [${source.title}](${source.url})\n`
+      })
+    }
+
     // Extract title from the research content (first heading or use topic)
-    const titleMatch = researchContent.match(/^#\s+(.+)$/m)
+    const titleMatch = finalContent.match(/^#\s+(.+)$/m)
     const title = titleMatch ? titleMatch[1] : `Research: ${topic}`
 
     // Generate a summary (first paragraph or extract from content)
-    const summaryMatch = researchContent.match(/(?:##?\s+(?:Executive Summary|Summary|Introduction)[^\n]*\n+)([^\n#]+(?:\n[^\n#]+)*)/i)
+    const summaryMatch = finalContent.match(/(?:##?\s+(?:Executive Summary|Summary|Introduction)[^\n]*\n+)([^\n#]+(?:\n[^\n#]+)*)/i)
     const summary = summaryMatch
       ? summaryMatch[1].trim().substring(0, 500)
-      : researchContent.substring(0, 500).trim()
+      : finalContent.substring(0, 500).trim()
 
     // Save research as a document
     const documentId = await withRls(userId, async (client) => {
@@ -85,7 +105,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         `INSERT INTO documents (user_id, title, content, summary, tags)
          VALUES ($1, $2, $3, $4, $5)
          RETURNING id`,
-        [userId, title, researchContent, summary, ['research', 'ai-generated', depth]]
+        [userId, title, finalContent, summary, ['research', 'ai-generated', depth]]
       )
 
       // Link document to conversation
