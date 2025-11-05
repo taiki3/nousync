@@ -91,21 +91,44 @@ export const documentsApi = {
     return response.data || []
   },
 
-  // ファイルをアップロード
+  // ファイルをアップロード（直接Storageへ）
   async upload(file: File): Promise<Document> {
     const client = getApiClient()
-    const formData = new FormData()
-    formData.append('file', file)
 
-    const response = await client.upload<Document | ApiResponse<Document>>(
-      '/documents',
-      formData,
-    )
+    // Step 1: Get signed upload URL
+    const urlResponse = await client.post<ApiResponse<{
+      uploadUrl: string
+      path: string
+      token: string
+    }>>('/storage/upload-url', {
+      fileName: file.name,
+      fileType: file.type,
+    })
 
-    // APIレスポンスの形式に対応
-    if ('data' in response) {
-      return response.data
+    const { uploadUrl, path, token } = urlResponse.data
+
+    // Step 2: Upload directly to Supabase Storage
+    const uploadFormData = new FormData()
+    uploadFormData.append('file', file)
+    uploadFormData.append('token', token)
+
+    const uploadResult = await fetch(uploadUrl, {
+      method: 'POST',
+      body: uploadFormData,
+    })
+
+    if (!uploadResult.ok) {
+      throw new Error(`Upload failed: ${uploadResult.statusText}`)
     }
-    return response
+
+    // Step 3: Notify backend to process the uploaded file
+    const completeResponse = await client.post<ApiResponse<Document>>('/storage/complete', {
+      path,
+      fileName: file.name,
+      fileType: file.type,
+      fileSize: file.size,
+    })
+
+    return completeResponse.data
   },
 }

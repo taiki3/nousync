@@ -12,21 +12,30 @@
     "dev:web": "pnpm --filter @nousync/web dev",
     "dev:api": "echo 'Use: vercel dev --cwd nousync'",
     "typecheck": "pnpm --filter @nousync/web run typecheck && tsc --project tsconfig.api.json",
-    "typecheck:api": "tsc --project tsconfig.api.json"
+    "typecheck:api": "tsc --project tsconfig.api.json",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
     "@supabase/supabase-js": "^2.45.0",
     "@types/node": "^20.11.30",
+    "@types/pdf-parse": "^1.1.5",
+    "@types/pg": "^8.15.5",
+    "@vitest/ui": "^4.0.7",
     "dotenv": "^17.2.3",
     "https-proxy-agent": "^7.0.6",
     "typescript": "^5.4.0",
-    "undici": "^7.16.0"
+    "undici": "^7.16.0",
+    "vitest": "^4.0.7"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.24.0",
     "@google/generative-ai": "^0.12.0",
     "@vercel/node": "^5.3.24",
     "openai": "^4.59.0",
+    "pdf-parse": "^2.4.5",
     "pg": "^8.11.5"
   }
 }
