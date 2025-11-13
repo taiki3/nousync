@@ -108,8 +108,9 @@ export default function CollaborativeTextEditor({
           clearTimeout(debounceTimerRef.current)
         }
         debounceTimerRef.current = setTimeout(() => {
-          // 最新のonDocumentUpdateを使用（クロージャキャプチャ）
-          onDocumentUpdate(document.id, newContent)
+          // タイマー実行時に最新のytext値を読み取る
+          // リモート編集がマージされた後の値を保存するため
+          onDocumentUpdate(document.id, ytext.toString())
         }, 500)
       }
 
