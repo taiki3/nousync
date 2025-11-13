@@ -72,6 +72,9 @@ export default function CollaborativeTextEditor({
     // IndexedDBの読み込みを待ってから初期コンテンツを設定
     // オフライン編集がある場合は重複を防ぐ
     provider.persistence?.whenSynced.then(() => {
+      // ドキュメントが切り替わっていないか確認（古いコールバックの実行を防ぐ）
+      if (documentId !== document.id) return
+
       // IndexedDBにデータがない場合のみサーバーのコンテンツを設定
       if (ytext.length === 0 && document.content) {
         ytext.insert(0, document.content)
@@ -130,6 +133,13 @@ export default function CollaborativeTextEditor({
     }
     // documentIdのみに依存（documentオブジェクト全体だと毎回再初期化される）
   }, [documentId, supabase])
+
+  // タグの同期: 同じドキュメントでもタグが更新された場合に反映
+  useEffect(() => {
+    if (document?.tags) {
+      setTags(document.tags)
+    }
+  }, [document?.tags])
 
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newContent = e.target.value
