@@ -8,11 +8,11 @@ import { IndexeddbPersistence } from 'y-indexeddb'
  */
 export class SupabaseProvider {
   public doc: Y.Doc
-  public awareness: any
+  public awareness: any = null  // 将来の拡張用（現在は未使用）
+  public persistence: IndexeddbPersistence | null = null  // IndexedDB永続化
   private supabase: SupabaseClient
   private channel: RealtimeChannel | null = null
   private documentId: string
-  private persistence: IndexeddbPersistence | null = null
   private synced = false
 
   constructor(documentId: string, doc: Y.Doc, supabase: SupabaseClient) {

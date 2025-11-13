@@ -42,9 +42,6 @@ export default function CollaborativeTextEditor({
   // ドキュメントIDのみを依存配列に使用（documentオブジェクト全体だと毎回再初期化される）
   const documentId = document?.id
 
-  // onDocumentUpdateをメモ化して安定した参照を保つ
-  const stableOnDocumentUpdate = useCallback(onDocumentUpdate, [])
-
   // ドキュメントが変更されたら Y.js を初期化
   useEffect(() => {
     if (!document || !supabase || !documentId) {
@@ -68,16 +65,24 @@ export default function CollaborativeTextEditor({
     const ytext = ydoc.getText('content')
     ytextRef.current = ytext
 
-    // 初期コンテンツを設定
-    if (document.content && ytext.length === 0) {
-      ytext.insert(0, document.content)
-    }
-    setContent(ytext.toString())
-    setTags(document.tags || [])
-
-    // Supabase プロバイダーを接続
+    // Supabase プロバイダーとIndexedDB永続化を接続
     const provider = new SupabaseProvider(document.id, ydoc, supabase)
     providerRef.current = provider
+
+    // IndexedDBの読み込みを待ってから初期コンテンツを設定
+    // オフライン編集がある場合は重複を防ぐ
+    provider.persistence?.whenSynced.then(() => {
+      // IndexedDBにデータがない場合のみサーバーのコンテンツを設定
+      if (ytext.length === 0 && document.content) {
+        ytext.insert(0, document.content)
+      }
+      setContent(ytext.toString())
+      setTags(document.tags || [])
+    })
+
+    // IndexedDB同期前でも表示はする
+    setContent(ytext.toString())
+    setTags(document.tags || [])
 
     // Y.Text の変更を監視してテキストエリアを更新
     const handleYTextChange = () => {
@@ -95,7 +100,8 @@ export default function CollaborativeTextEditor({
           clearTimeout(debounceTimerRef.current)
         }
         debounceTimerRef.current = setTimeout(() => {
-          stableOnDocumentUpdate(document.id, newContent)
+          // 最新のonDocumentUpdateを使用（クロージャキャプチャ）
+          onDocumentUpdate(document.id, newContent)
         }, 500)
       }
 
