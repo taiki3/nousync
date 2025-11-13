@@ -118,8 +118,11 @@ export default function CollaborativeTextEditor({
     // クリーンアップ
     return () => {
       clearInterval(checkSync)
+      // Flush pending debounced save before cleanup
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current)
+        // Save final changes immediately to prevent data loss
+        onDocumentUpdate(document.id, ytext.toString())
       }
       ytext.unobserve(handleYTextChange)
       provider.disconnect()

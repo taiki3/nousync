@@ -99,10 +99,9 @@ export class SupabaseProvider {
       this.channel = null
     }
 
-    if (this.persistence) {
-      this.persistence.destroy()
-      this.persistence = null
-    }
+    // Note: IndexedDB persistence is NOT destroyed here to preserve offline edits.
+    // The persistence layer should remain intact so the next session can resync.
+    // Only call persistence.destroy() when the document is permanently deleted.
   }
 
   public isSynced(): boolean {
