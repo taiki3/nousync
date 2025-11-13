@@ -38,7 +38,8 @@ export class SupabaseProvider {
     this.channel.on('broadcast', { event: 'update' }, ({ payload }) => {
       if (payload.update) {
         const update = new Uint8Array(payload.update)
-        Y.applyUpdate(this.doc, update)
+        // originにthisを渡して、再ブロードキャストを防ぐ
+        Y.applyUpdate(this.doc, update, this)
       }
     })
 
@@ -57,7 +58,8 @@ export class SupabaseProvider {
     this.channel.on('broadcast', { event: 'sync-response' }, ({ payload }) => {
       if (payload.update) {
         const update = new Uint8Array(payload.update)
-        Y.applyUpdate(this.doc, update)
+        // originにthisを渡して、再ブロードキャストを防ぐ
+        Y.applyUpdate(this.doc, update, this)
         this.synced = true
       }
     })

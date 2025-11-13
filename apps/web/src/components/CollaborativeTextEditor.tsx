@@ -74,13 +74,17 @@ export default function CollaborativeTextEditor({
 
     // Y.Text の変更を監視してテキストエリアを更新
     const handleYTextChange = () => {
-      if (!isLocalChangeRef.current) {
-        const newContent = ytext.toString()
-        setContent(newContent)
+      const newContent = ytext.toString()
 
-        // バックエンドに保存（デバウンスなし、Y.jsが競合解決するので）
+      if (!isLocalChangeRef.current) {
+        // リモートからの変更: UIのみ更新
+        setContent(newContent)
+      } else {
+        // ローカルの変更: UIを更新してバックエンドにも保存
+        setContent(newContent)
         onDocumentUpdate(document.id, newContent)
       }
+
       isLocalChangeRef.current = false
     }
 
