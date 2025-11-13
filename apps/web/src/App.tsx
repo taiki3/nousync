@@ -2,10 +2,10 @@ import type { Document } from '@nousync/shared'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AuthGuard } from './components/AuthGuard'
 import ChatWindow from './components/ChatWindow'
+import CollaborativeTextEditor from './components/CollaborativeTextEditor'
 import FileExplorer from './components/FileExplorer'
 import { ResizableLayout } from './components/ResizableLayout'
 import { SettingsView } from './components/SettingsView'
-import TextEditor from './components/TextEditor'
 import { useAuth } from './contexts/AuthContext'
 import { SettingsProvider } from './contexts/SettingsContext'
 import { useLocalStorage } from './hooks'
@@ -262,7 +262,7 @@ function App() {
             showSettings ? (
               <SettingsView />
             ) : (
-              <TextEditor
+              <CollaborativeTextEditor
                 document={selectedDocument}
                 onDocumentUpdate={handleDocumentUpdate}
                 onDocumentDelete={handleDocumentDelete}
