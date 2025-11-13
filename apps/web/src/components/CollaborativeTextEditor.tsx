@@ -37,10 +37,17 @@ export default function CollaborativeTextEditor({
   const ytextRef = useRef<Y.Text | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const isLocalChangeRef = useRef(false)
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  // ドキュメントIDのみを依存配列に使用（documentオブジェクト全体だと毎回再初期化される）
+  const documentId = document?.id
+
+  // onDocumentUpdateをメモ化して安定した参照を保つ
+  const stableOnDocumentUpdate = useCallback(onDocumentUpdate, [])
 
   // ドキュメントが変更されたら Y.js を初期化
   useEffect(() => {
-    if (!document || !supabase) {
+    if (!document || !supabase || !documentId) {
       // クリーンアップ
       if (providerRef.current) {
         providerRef.current.disconnect()
@@ -80,9 +87,16 @@ export default function CollaborativeTextEditor({
         // リモートからの変更: UIのみ更新
         setContent(newContent)
       } else {
-        // ローカルの変更: UIを更新してバックエンドにも保存
+        // ローカルの変更: UIを更新してバックエンドにも保存（デバウンス）
         setContent(newContent)
-        onDocumentUpdate(document.id, newContent)
+
+        // デバウンス処理でAPI呼び出しを削減
+        if (debounceTimerRef.current) {
+          clearTimeout(debounceTimerRef.current)
+        }
+        debounceTimerRef.current = setTimeout(() => {
+          stableOnDocumentUpdate(document.id, newContent)
+        }, 500)
       }
 
       isLocalChangeRef.current = false
@@ -98,11 +112,15 @@ export default function CollaborativeTextEditor({
     // クリーンアップ
     return () => {
       clearInterval(checkSync)
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current)
+      }
       ytext.unobserve(handleYTextChange)
       provider.disconnect()
       ydoc.destroy()
     }
-  }, [document, supabase, onDocumentUpdate])
+    // documentIdのみに依存（documentオブジェクト全体だと毎回再初期化される）
+  }, [documentId, supabase])
 
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newContent = e.target.value
