@@ -80,10 +80,18 @@ export default function CollaborativeTextEditor({
       // refの現在値と比較することで、最新のdocumentIdと照合
       if (currentDocumentIdRef.current !== documentId) return
 
+      const restoredContent = ytext.toString()
+
       // IndexedDBにデータがない場合のみサーバーのコンテンツを設定
       if (ytext.length === 0 && document.content) {
         ytext.insert(0, document.content)
       }
+
+      // オフライン編集が復元された場合、サーバーと異なればバックエンドに保存
+      if (restoredContent && restoredContent !== document.content) {
+        onDocumentUpdate(document.id, restoredContent)
+      }
+
       setContent(ytext.toString())
       setTags(document.tags || [])
     })
