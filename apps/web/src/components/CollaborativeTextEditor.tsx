@@ -75,14 +75,23 @@ export default function CollaborativeTextEditor({
 
     // IndexedDBの読み込みを待ってから初期コンテンツを設定
     // オフライン編集がある場合は重複を防ぐ
-    provider.persistence?.whenSynced.then(() => {
+    provider.persistence?.whenSynced.then(async () => {
       // ドキュメントが切り替わっていないか確認（古いコールバックの実行を防ぐ）
       // refの現在値と比較することで、最新のdocumentIdと照合
       if (currentDocumentIdRef.current !== documentId) return
 
       const restoredContent = ytext.toString()
 
-      // IndexedDBにデータがない場合のみサーバーのコンテンツを設定
+      // リアルタイム同期を待つ（最大2秒）
+      // リモートピアから更新が来る可能性があるので、サーバースナップショットの
+      // 挿入前に少し待つ。これにより重複コンテンツを防ぐ。
+      await new Promise(resolve => setTimeout(resolve, 2000))
+
+      // まだドキュメントが切り替わっていないか再確認
+      if (currentDocumentIdRef.current !== documentId) return
+
+      // IndexedDBにデータがなく、リアルタイム同期後もまだ空の場合のみ
+      // サーバーのコンテンツを設定
       if (ytext.length === 0 && document.content) {
         ytext.insert(0, document.content)
       }
