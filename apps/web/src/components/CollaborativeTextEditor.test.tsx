@@ -41,12 +41,12 @@ describe('CollaborativeTextEditor - Basic Functionality', () => {
   beforeEach(() => {
     mockDocument = {
       id: 'doc-1',
-      user_id: 'user-1',
+      userId: 'user-1',
       title: 'Test Doc',
       content: '# Test Doc\n\nInitial content',
       tags: ['tag1'],
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
     }
     mockOnUpdate = vi.fn()
   })
