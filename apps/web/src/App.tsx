@@ -75,6 +75,25 @@ function App() {
                   setNewDocumentIds(new Set())
                 }, 5000)
               }
+
+              // Merge documents using timestamp-based conflict resolution
+              // Only update if server has newer data
+              const prevDocsMap = new Map(prevDocs.map((doc) => [doc.id, doc]))
+              return documentsArray.map((serverDoc) => {
+                const localDoc = prevDocsMap.get(serverDoc.id)
+                if (!localDoc) {
+                  // New document from server
+                  return serverDoc
+                }
+
+                // Compare timestamps - prefer newer data
+                const serverTime = new Date(serverDoc.updatedAt || serverDoc.createdAt).getTime()
+                const localTime = new Date(localDoc.updatedAt || localDoc.createdAt).getTime()
+
+                // If server has newer data, use it
+                // Otherwise keep local data (user might be editing)
+                return serverTime > localTime ? serverDoc : localDoc
+              })
             }
             return documentsArray
           })
@@ -177,7 +196,9 @@ function App() {
 
   const handleDocumentUpdate = async (id: string, content: string, tags?: string[]) => {
     // ローカルステートを即座に更新（UI応答性向上）
-    const updateData = tags !== undefined ? { content, tags } : { content }
+    // 楽観的更新: ローカルのタイムスタンプを現在時刻に設定
+    const now = new Date().toISOString()
+    const updateData = tags !== undefined ? { content, tags, updatedAt: now } : { content, updatedAt: now }
     setDocuments((docs) => docs.map((doc) => (doc.id === id ? { ...doc, ...updateData } : doc)))
     if (selectedDocument?.id === id) {
       setSelectedDocument((prev) => (prev ? { ...prev, ...updateData } : null))
@@ -185,9 +206,9 @@ function App() {
 
     // DBに保存
     try {
-      const updatedDoc = await documentsApi.update(id, updateData)
+      const updatedDoc = await documentsApi.update(id, tags !== undefined ? { content, tags } : { content })
 
-      // サーバーから返されたドキュメント（タイトルが更新されている可能性がある）で更新
+      // サーバーから返されたドキュメント（タイトルやタイムスタンプが更新されている）で更新
       setDocuments((docs) => docs.map((doc) => (doc.id === id ? updatedDoc : doc)))
       if (selectedDocument?.id === id) {
         setSelectedDocument(updatedDoc)
