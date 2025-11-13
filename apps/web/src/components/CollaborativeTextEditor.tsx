@@ -215,7 +215,7 @@ export default function CollaborativeTextEditor({
     )
   }
 
-  const title = getDocumentTitle(content)
+  const title = getDocumentTitle({ title: document.title, content })
 
   return (
     <div className="flex flex-col h-full">
