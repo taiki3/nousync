@@ -38,9 +38,13 @@ export default function CollaborativeTextEditor({
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const isLocalChangeRef = useRef(false)
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const currentDocumentIdRef = useRef<string | undefined>(undefined)
 
   // ドキュメントIDのみを依存配列に使用（documentオブジェクト全体だと毎回再初期化される）
   const documentId = document?.id
+
+  // 現在のdocumentIdをrefで追跡（whenSyncedコールバックでの検証用）
+  currentDocumentIdRef.current = documentId
 
   // ドキュメントが変更されたら Y.js を初期化
   useEffect(() => {
@@ -73,7 +77,8 @@ export default function CollaborativeTextEditor({
     // オフライン編集がある場合は重複を防ぐ
     provider.persistence?.whenSynced.then(() => {
       // ドキュメントが切り替わっていないか確認（古いコールバックの実行を防ぐ）
-      if (documentId !== document.id) return
+      // refの現在値と比較することで、最新のdocumentIdと照合
+      if (currentDocumentIdRef.current !== documentId) return
 
       // IndexedDBにデータがない場合のみサーバーのコンテンツを設定
       if (ytext.length === 0 && document.content) {
