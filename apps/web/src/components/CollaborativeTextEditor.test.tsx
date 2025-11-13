@@ -89,3 +89,11 @@ describe('CollaborativeTextEditor - Basic Functionality', () => {
     expect(textarea).toBeTruthy()
   })
 })
+
+// TODO: Offline persistence tests
+// オフライン編集の復元をユニットテストでカバーするには、
+// Y.js、IndexedDB、非同期Promiseの複雑なモックが必要です。
+// この機能は以下の方法でテストすべき:
+// 1. コードレビューで実装ロジックを確認
+// 2. 手動テスト: オフライン編集 → タブを閉じる → 再接続
+// 3. E2Eテスト: Playwrightなどで実際のブラウザでテスト
