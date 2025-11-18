@@ -81,6 +81,17 @@ export class SupabaseProvider {
           payload: { clientId },
         })
 
+        // オフライン編集対応: 既存のローカル状態をブロードキャスト
+        // IndexedDBから復元された編集や、接続前の変更を他のピアに送信
+        const localState = Y.encodeStateAsUpdate(this.doc)
+        if (localState.length > 0) {
+          await this.channel?.send({
+            type: 'broadcast',
+            event: 'update',
+            payload: { update: Array.from(localState) },
+          })
+        }
+
         // ソロクライアント対策: SUBSCRIBED時点でリアルタイム接続は成功
         // 他のピアから sync-response が来ればそれで上書きされる
         this.realtimeSynced = true
