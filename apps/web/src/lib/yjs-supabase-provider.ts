@@ -81,8 +81,15 @@ export class SupabaseProvider {
           payload: { clientId },
         })
 
+        // ソロクライアント対策: SUBSCRIBED時点でリアルタイム接続は成功
+        // 他のピアから sync-response が来ればそれで上書きされる
+        this.realtimeSynced = true
+
         // ローカル変更を監視してブロードキャスト
         this.doc.on('update', this.handleUpdate)
+      } else if (status === 'CLOSED' || status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
+        // 接続が切れたらフラグをリセット
+        this.realtimeSynced = false
       }
     })
   }
