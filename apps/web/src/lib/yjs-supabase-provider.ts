@@ -15,6 +15,7 @@ export class SupabaseProvider {
   private documentId: string
   private realtimeSynced = false
   private persistenceSynced = false
+  private updateListenerAttached = false  // リスナー重複防止フラグ
 
   constructor(documentId: string, doc: Y.Doc, supabase: SupabaseClient) {
     this.documentId = documentId
@@ -98,8 +99,11 @@ export class SupabaseProvider {
         // 他のピアから sync-response が来ればそれで上書きされる
         this.realtimeSynced = true
 
-        // ローカル変更を監視してブロードキャスト
-        this.doc.on('update', this.handleUpdate)
+        // ローカル変更を監視してブロードキャスト（重複防止）
+        if (!this.updateListenerAttached) {
+          this.doc.on('update', this.handleUpdate)
+          this.updateListenerAttached = true
+        }
       } else if (status === 'CLOSED' || status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
         // 接続が切れたらフラグをリセット
         this.realtimeSynced = false
@@ -121,6 +125,7 @@ export class SupabaseProvider {
   public disconnect() {
     if (this.channel) {
       this.doc.off('update', this.handleUpdate)
+      this.updateListenerAttached = false
       this.supabase.removeChannel(this.channel)
       this.channel = null
     }

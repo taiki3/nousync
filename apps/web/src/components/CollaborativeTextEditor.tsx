@@ -100,9 +100,18 @@ export default function CollaborativeTextEditor({
         })
       }
 
-      // オフライン編集が復元された場合、サーバーと異なればバックエンドに保存
+      // オフライン編集が復元された場合、リアルタイム同期後にバックエンドに保存
+      // リモート編集とのCRDTマージを待ってから保存することでデータ損失を防ぐ
       if (restoredContent && restoredContent !== document.content) {
-        onUpdateRef.current(document.id, restoredContent)
+        // リアルタイム同期完了を待つ（500ms以内にピアから応答がなければソロと判断）
+        await new Promise(resolve => setTimeout(resolve, 500))
+        if (currentDocumentIdRef.current !== documentId) return
+
+        // マージ後の最終コンテンツを保存
+        const mergedContent = ytext.toString()
+        if (mergedContent !== document.content) {
+          onUpdateRef.current(document.id, mergedContent)
+        }
       }
 
       setContent(ytext.toString())
