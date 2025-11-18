@@ -140,8 +140,8 @@ export class SupabaseProvider {
         await (temp as any).clearData()
       }
       await temp.destroy()
-    } catch (_) {
-      // 失敗してもアプリ継続
+    } catch (error) {
+      console.warn('Failed to destroy IndexedDB persistence:', error)
     }
   }
 }

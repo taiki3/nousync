@@ -14,26 +14,38 @@ vi.mock('../lib/yjs-supabase-provider', () => {
     }
   }
 
-  const whenSyncedDeferred = new Deferred<void>()
+  // documentId ごとに Deferred を管理してテストの独立性を保つ
+  const deferredMap = new Map<string, Deferred<void>>()
   const instances: any[] = []
 
   return {
     __esModule: true,
     SupabaseProvider: class MockSupabaseProvider {
       doc: any
+      documentId: string
       disconnect = vi.fn()
       // シンプルな2段階同期状態
       _realtimeSynced = true
       _persistenceSynced = false
       destroyPersistence = vi.fn(async () => {})
-      persistence = {
-        whenSynced: whenSyncedDeferred.promise.then(() => {
-          ;(this as any)._persistenceSynced = true
-        }),
-      }
+      persistence: { whenSynced: Promise<void> }
+
       constructor(documentId: string, doc: any, supabase: any) {
         this.doc = doc
+        this.documentId = documentId
         instances.push(this)
+
+        // documentId ごとに Deferred を作成
+        if (!deferredMap.has(documentId)) {
+          deferredMap.set(documentId, new Deferred<void>())
+        }
+        const deferred = deferredMap.get(documentId)!
+
+        this.persistence = {
+          whenSynced: deferred.promise.then(() => {
+            ;(this as any)._persistenceSynced = true
+          }),
+        }
       }
       isSynced = vi.fn(() => this._realtimeSynced)
       isRealtimeSynced = vi.fn(() => this._realtimeSynced)
@@ -41,7 +53,15 @@ vi.mock('../lib/yjs-supabase-provider', () => {
     },
     // テスト用: whenSyncedを制御
     __testUtils: {
-      resolveWhenSynced: () => whenSyncedDeferred.resolve(),
+      resolveWhenSynced: (documentId?: string) => {
+        if (documentId) {
+          deferredMap.get(documentId)?.resolve()
+        } else {
+          // 後方互換性: documentId 未指定の場合は全て解決
+          deferredMap.forEach((deferred) => deferred.resolve())
+        }
+      },
+      clearDeferredMap: () => deferredMap.clear(),
     },
     __getLastInstance: () => instances[instances.length - 1],
   }
@@ -63,8 +83,17 @@ vi.mock('../contexts/AuthContext', () => ({
 describe('CollaborativeTextEditor - Basic Functionality', () => {
   let mockDocument: Document
   let mockOnUpdate: ReturnType<typeof vi.fn>
+  let __testUtils: any
+
+  beforeAll(async () => {
+    const mod = await import('../lib/yjs-supabase-provider')
+    __testUtils = (mod as any).__testUtils
+  })
 
   beforeEach(() => {
+    // テスト間の独立性を保つため、各テスト前にdeferredMapをクリア
+    __testUtils.clearDeferredMap()
+
     mockDocument = {
       id: 'doc-1',
       userId: 'user-1',
@@ -133,6 +162,9 @@ describe('CollaborativeTextEditor - Advanced Behavior', () => {
   let mockOnUpdate: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
+    // テスト間の独立性を保つため、各テスト前にdeferredMapをクリア
+    __testUtils.clearDeferredMap()
+
     mockOnUpdate = vi.fn()
     mockDocumentA = {
       id: 'doc-A',

@@ -11,6 +11,8 @@ export default defineConfig({
     css: true,
     include: ['src/**/*.test.{ts,tsx}'],
     pool: 'threads',
+    // Single-threaded execution to ensure test isolation
+    // Prevents mock state conflicts with SupabaseProvider instances
     maxWorkers: 1,
   },
   resolve: {
