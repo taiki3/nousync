@@ -10,6 +10,7 @@ import { useAuth } from './contexts/AuthContext'
 import { SettingsProvider } from './contexts/SettingsContext'
 import { useLocalStorage } from './hooks'
 import { ApiError, documentsApi } from './services/api'
+import { destroyDocumentPersistence } from './lib/yjs-supabase-provider'
 
 function App() {
   const { authenticated, token, apiClientReady } = useAuth()
@@ -215,6 +216,8 @@ function App() {
   const handleDocumentDelete = async (id: string) => {
     try {
       await documentsApi.delete(id)
+      // ローカルIndexedDBに残ったオフラインデータを削除
+      await destroyDocumentPersistence(id)
 
       // ローカルステートから削除
       setDocuments((docs) => docs.filter((doc) => doc.id !== id))

@@ -30,6 +30,8 @@ export default function CollaborativeTextEditor({
   const [newTag, setNewTag] = useState('')
   const [isAddingTag, setIsAddingTag] = useState(false)
   const [isSynced, setIsSynced] = useState(false)
+  const [isRealtimeSynced, setIsRealtimeSynced] = useState(false)
+  const [isPersistenceSynced, setIsPersistenceSynced] = useState(false)
 
   // Y.js
   const ydocRef = useRef<Y.Doc | null>(null)
@@ -68,32 +70,31 @@ export default function CollaborativeTextEditor({
     // Y.Text を取得
     const ytext = ydoc.getText('content')
     ytextRef.current = ytext
+    const meta = ydoc.getMap('meta')
 
     // Supabase プロバイダーとIndexedDB永続化を接続
     const provider = new SupabaseProvider(document.id, ydoc, supabase)
     providerRef.current = provider
+    setIsRealtimeSynced(provider.isRealtimeSynced?.() ?? false)
+    setIsPersistenceSynced(provider.isPersistenceSynced?.() ?? false)
 
     // IndexedDBの読み込みを待ってから初期コンテンツを設定
     // オフライン編集がある場合は重複を防ぐ
     provider.persistence?.whenSynced.then(async () => {
+      setIsPersistenceSynced(true)
       // ドキュメントが切り替わっていないか確認（古いコールバックの実行を防ぐ）
       // refの現在値と比較することで、最新のdocumentIdと照合
       if (currentDocumentIdRef.current !== documentId) return
 
       const restoredContent = ytext.toString()
 
-      // リアルタイム同期を待つ（最大2秒）
-      // リモートピアから更新が来る可能性があるので、サーバースナップショットの
-      // 挿入前に少し待つ。これにより重複コンテンツを防ぐ。
-      await new Promise(resolve => setTimeout(resolve, 2000))
-
-      // まだドキュメントが切り替わっていないか再確認
-      if (currentDocumentIdRef.current !== documentId) return
-
-      // IndexedDBにデータがなく、リアルタイム同期後もまだ空の場合のみ
-      // サーバーのコンテンツを設定
-      if (ytext.length === 0 && document.content) {
-        ytext.insert(0, document.content)
+      // 重複シード防止: meta.seeded を使用（CRDTで一回だけ）
+      const alreadySeeded = Boolean(meta.get('seeded'))
+      if (!alreadySeeded && ytext.length === 0 && document.content) {
+        ydoc.transact(() => {
+          meta.set('seeded', true)
+          ytext.insert(0, document.content)
+        })
       }
 
       // オフライン編集が復元された場合、サーバーと異なればバックエンドに保存
@@ -139,7 +140,9 @@ export default function CollaborativeTextEditor({
     // 同期状態を監視
     const checkSync = setInterval(() => {
       setIsSynced(provider.isSynced())
-    }, 1000)
+      setIsRealtimeSynced(provider.isRealtimeSynced?.() ?? provider.isSynced())
+      setIsPersistenceSynced(provider.isPersistenceSynced?.() ?? false)
+    }, 500)
 
     // クリーンアップ
     return () => {
@@ -171,7 +174,7 @@ export default function CollaborativeTextEditor({
     if (!ytext || !textareaRef.current) return
 
     // カーソル位置を保持
-    const cursorPos = textareaRef.current.selectionStart
+    const cursorStart = textareaRef.current.selectionStart
     const cursorEnd = textareaRef.current.selectionEnd
 
     // Y.Text を更新（ローカル変更フラグを立てる）
@@ -179,7 +182,7 @@ export default function CollaborativeTextEditor({
 
     // 差分を計算して Y.Text に適用
     const oldContent = ytext.toString()
-    const delta = calculateDelta(oldContent, newContent, cursorPos)
+    const delta = calculateDelta(oldContent, newContent)
 
     if (delta.delete > 0) {
       ytext.delete(delta.start, delta.delete)
@@ -193,7 +196,8 @@ export default function CollaborativeTextEditor({
     // カーソル位置を復元
     setTimeout(() => {
       if (textareaRef.current) {
-        textareaRef.current.setSelectionRange(cursorPos, cursorEnd)
+        const newCursor = delta.start + (delta.insert?.length || 0)
+        textareaRef.current.setSelectionRange(newCursor, newCursor)
       }
     }, 0)
   }
@@ -219,6 +223,8 @@ export default function CollaborativeTextEditor({
   const handleDelete = () => {
     if (document && onDocumentDelete) {
       if (confirm('このドキュメントを削除しますか？')) {
+        // ローカルIndexedDBの永続データも削除
+        providerRef.current?.destroyPersistence?.()
         onDocumentDelete(document.id)
       }
     }
@@ -240,14 +246,15 @@ export default function CollaborativeTextEditor({
       <div className="flex items-center justify-between p-4 border-b">
         <div className="flex items-center gap-2">
           <h2 className="text-lg font-semibold">{title}</h2>
-          {!isSynced && (
-            <span className="text-xs text-amber-600">同期中...</span>
-          )}
-          {isSynced && (
-            <span className="text-xs text-green-600">同期済み</span>
-          )}
+          {/* 二段同期表示 */}
+          <span className={"text-xs " + (isPersistenceSynced ? 'text-green-600' : 'text-amber-600')}>
+            ローカル: {isPersistenceSynced ? '復元済み' : '復元中...'}
+          </span>
+          <span className={"text-xs " + (isRealtimeSynced ? 'text-green-600' : 'text-amber-600')}>
+            リアルタイム: {isRealtimeSynced ? '同期済み' : '同期中...'}
+          </span>
         </div>
-        <Button variant="ghost" size="icon" onClick={handleDelete}>
+        <Button variant="ghost" size="icon" onClick={handleDelete} aria-label="delete-document">
           <Trash2 className="h-4 w-4" />
         </Button>
       </div>
@@ -271,7 +278,7 @@ export default function CollaborativeTextEditor({
             <Input
               value={newTag}
               onChange={(e) => setNewTag(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleAddTag()}
+              onKeyDown={(e) => e.key === 'Enter' && handleAddTag()}
               placeholder="タグを入力"
               className="w-32 h-7"
               autoFocus
@@ -333,7 +340,6 @@ export default function CollaborativeTextEditor({
 function calculateDelta(
   oldText: string,
   newText: string,
-  cursorPos: number
 ): { start: number; delete: number; insert: string } {
   // 簡易的な差分計算
   // カーソル位置を基準に変更を検出

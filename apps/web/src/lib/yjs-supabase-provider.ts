@@ -13,7 +13,8 @@ export class SupabaseProvider {
   private supabase: SupabaseClient
   private channel: RealtimeChannel | null = null
   private documentId: string
-  private synced = false
+  private realtimeSynced = false
+  private persistenceSynced = false
 
   constructor(documentId: string, doc: Y.Doc, supabase: SupabaseClient) {
     this.documentId = documentId
@@ -22,6 +23,10 @@ export class SupabaseProvider {
 
     // IndexedDB で永続化（オフライン対応）
     this.persistence = new IndexeddbPersistence(documentId, doc)
+    // 同期完了をフラグ化
+    this.persistence.whenSynced.then(() => {
+      this.persistenceSynced = true
+    })
 
     this.connect()
   }
@@ -30,7 +35,8 @@ export class SupabaseProvider {
     // Supabase Realtime チャンネルに接続
     this.channel = this.supabase.channel(`document:${this.documentId}`, {
       config: {
-        broadcast: { self: true },
+        // 自分のブロードキャストは受信しない
+        broadcast: { self: false },
       },
     })
 
@@ -60,7 +66,7 @@ export class SupabaseProvider {
         const update = new Uint8Array(payload.update)
         // originにthisを渡して、再ブロードキャストを防ぐ
         Y.applyUpdate(this.doc, update, this)
-        this.synced = true
+        this.realtimeSynced = true
       }
     })
 
@@ -105,6 +111,59 @@ export class SupabaseProvider {
   }
 
   public isSynced(): boolean {
-    return this.synced
+    return this.realtimeSynced
+  }
+
+  public isRealtimeSynced(): boolean {
+    return this.realtimeSynced
+  }
+
+  public isPersistenceSynced(): boolean {
+    return this.persistenceSynced
+  }
+
+  // 永続データ削除（ドキュメント削除時に使用）
+  public async destroyPersistence() {
+    const anyIdx = IndexeddbPersistence as unknown as {
+      clearData?: (name: string) => Promise<void> | void
+    }
+    if (typeof anyIdx.clearData === 'function') {
+      await anyIdx.clearData(this.documentId)
+      return
+    }
+    // フォールバック: 一時Docで初期化して破棄
+    try {
+      const tempDoc = new Y.Doc()
+      const temp = new IndexeddbPersistence(this.documentId, tempDoc)
+      // @ts-ignore - 一部実装ではdestroyでデータも削除される
+      if (typeof (temp as any).clearData === 'function') {
+        await (temp as any).clearData()
+      }
+      await temp.destroy()
+    } catch (_) {
+      // 失敗してもアプリ継続
+    }
+  }
+}
+
+// ヘルパー: コンポーネント外から削除したい場合に使用
+export async function destroyDocumentPersistence(documentId: string) {
+  const anyIdx = IndexeddbPersistence as unknown as {
+    clearData?: (name: string) => Promise<void> | void
+  }
+  if (typeof anyIdx.clearData === 'function') {
+    await anyIdx.clearData(documentId)
+    return
+  }
+  try {
+    const tempDoc = new Y.Doc()
+    const temp = new IndexeddbPersistence(documentId, tempDoc)
+    // @ts-ignore
+    if (typeof (temp as any).clearData === 'function') {
+      await (temp as any).clearData()
+    }
+    await temp.destroy()
+  } catch (_) {
+    // no-op
   }
 }
