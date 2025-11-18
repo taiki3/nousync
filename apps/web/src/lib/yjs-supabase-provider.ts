@@ -75,6 +75,8 @@ export class SupabaseProvider {
       if (status === 'SUBSCRIBED') {
         // 接続成功、同期リクエストを送信
         const clientId = Math.random().toString(36).substring(7)
+        // 単独接続でも"接続済み"として扱う（UIの分かりやすさを優先）
+        this.realtimeSynced = true
         await this.channel?.send({
           type: 'broadcast',
           event: 'sync-request',

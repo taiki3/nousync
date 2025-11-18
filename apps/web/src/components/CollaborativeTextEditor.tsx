@@ -41,12 +41,15 @@ export default function CollaborativeTextEditor({
   const isLocalChangeRef = useRef(false)
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
   const currentDocumentIdRef = useRef<string | undefined>(undefined)
+  const onUpdateRef = useRef(onDocumentUpdate)
 
   // ドキュメントIDのみを依存配列に使用（documentオブジェクト全体だと毎回再初期化される）
   const documentId = document?.id
 
   // 現在のdocumentIdをrefで追跡（whenSyncedコールバックでの検証用）
   currentDocumentIdRef.current = documentId
+  // 最新の更新ハンドラを参照（クロージャの陳腐化対策）
+  onUpdateRef.current = onDocumentUpdate
 
   // ドキュメントが変更されたら Y.js を初期化
   useEffect(() => {
@@ -99,7 +102,7 @@ export default function CollaborativeTextEditor({
 
       // オフライン編集が復元された場合、サーバーと異なればバックエンドに保存
       if (restoredContent && restoredContent !== document.content) {
-        onDocumentUpdate(document.id, restoredContent)
+        onUpdateRef.current(document.id, restoredContent)
       }
 
       setContent(ytext.toString())
@@ -128,7 +131,7 @@ export default function CollaborativeTextEditor({
         debounceTimerRef.current = setTimeout(() => {
           // タイマー実行時に最新のytext値を読み取る
           // リモート編集がマージされた後の値を保存するため
-          onDocumentUpdate(document.id, ytext.toString())
+          onUpdateRef.current(document.id, ytext.toString())
         }, 500)
       }
 
@@ -151,7 +154,7 @@ export default function CollaborativeTextEditor({
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current)
         // Save final changes immediately to prevent data loss
-        onDocumentUpdate(document.id, ytext.toString())
+        onUpdateRef.current(document.id, ytext.toString())
       }
       ytext.unobserve(handleYTextChange)
       provider.disconnect()
@@ -206,7 +209,7 @@ export default function CollaborativeTextEditor({
     if (newTag.trim() && document) {
       const updatedTags = [...tags, newTag.trim()]
       setTags(updatedTags)
-      onDocumentUpdate(document.id, content, updatedTags)
+      onUpdateRef.current(document.id, content, updatedTags)
       setNewTag('')
       setIsAddingTag(false)
     }
@@ -216,7 +219,7 @@ export default function CollaborativeTextEditor({
     if (document) {
       const updatedTags = tags.filter((tag) => tag !== tagToRemove)
       setTags(updatedTags)
-      onDocumentUpdate(document.id, content, updatedTags)
+      onUpdateRef.current(document.id, content, updatedTags)
     }
   }
 
