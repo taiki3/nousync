@@ -38,7 +38,6 @@ export default function CollaborativeTextEditor({
   const providerRef = useRef<SupabaseProvider | null>(null)
   const ytextRef = useRef<Y.Text | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const isLocalChangeRef = useRef(false)
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
   const currentDocumentIdRef = useRef<string | undefined>(undefined)
   const onUpdateRef = useRef(onDocumentUpdate)
@@ -125,26 +124,18 @@ export default function CollaborativeTextEditor({
     // Y.Text の変更を監視してテキストエリアを更新
     const handleYTextChange = () => {
       const newContent = ytext.toString()
+      setContent(newContent)
 
-      if (!isLocalChangeRef.current) {
-        // リモートからの変更: UIのみ更新
-        setContent(newContent)
-      } else {
-        // ローカルの変更: UIを更新してバックエンドにも保存（デバウンス）
-        setContent(newContent)
-
-        // デバウンス処理でAPI呼び出しを削減
-        if (debounceTimerRef.current) {
-          clearTimeout(debounceTimerRef.current)
-        }
-        debounceTimerRef.current = setTimeout(() => {
-          // タイマー実行時に最新のytext値を読み取る
-          // リモート編集がマージされた後の値を保存するため
-          onUpdateRef.current(document.id, ytext.toString())
-        }, 500)
+      // ローカル/リモート問わず、マージ後の状態をバックエンドに保存（デバウンス）
+      // リモート更新でもCRDTマージ後の最終状態を保存することでデータ損失を防ぐ
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current)
       }
-
-      isLocalChangeRef.current = false
+      debounceTimerRef.current = setTimeout(() => {
+        // タイマー実行時に最新のytext値を読み取る
+        // 複数のリモート編集がマージされた後の最終値を保存
+        onUpdateRef.current(document.id, ytext.toString())
+      }, 500)
     }
 
     ytext.observe(handleYTextChange)
@@ -188,9 +179,6 @@ export default function CollaborativeTextEditor({
     // カーソル位置を保持
     const cursorStart = textareaRef.current.selectionStart
     const cursorEnd = textareaRef.current.selectionEnd
-
-    // Y.Text を更新（ローカル変更フラグを立てる）
-    isLocalChangeRef.current = true
 
     // 差分を計算して Y.Text に適用
     const oldContent = ytext.toString()
