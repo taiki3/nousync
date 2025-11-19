@@ -166,6 +166,40 @@ describe('/api/storage/complete', () => {
     })
   })
 
+  it('should return 403 when path does not belong to authenticated user', async () => {
+    req.body = {
+      path: 'another-user-id/document.pdf', // Different user's path
+      fileName: 'document.pdf',
+      fileType: 'application/pdf',
+      fileSize: 1024,
+    }
+
+    await handler(req as VercelRequest, res as VercelResponse)
+
+    expect(statusMock).toHaveBeenCalledWith(403)
+    expect(jsonMock).toHaveBeenCalledWith({
+      status: 'error',
+      error: expect.stringContaining('Unauthorized'),
+    })
+  })
+
+  it('should return 403 when path has no userId prefix', async () => {
+    req.body = {
+      path: 'document.pdf', // No userId prefix
+      fileName: 'document.pdf',
+      fileType: 'application/pdf',
+      fileSize: 1024,
+    }
+
+    await handler(req as VercelRequest, res as VercelResponse)
+
+    expect(statusMock).toHaveBeenCalledWith(403)
+    expect(jsonMock).toHaveBeenCalledWith({
+      status: 'error',
+      error: expect.stringContaining('Unauthorized'),
+    })
+  })
+
   it('should process upload and create document', async () => {
     await handler(req as VercelRequest, res as VercelResponse)
 
@@ -183,7 +217,7 @@ describe('/api/storage/complete', () => {
   it('should return 404 when file not found in storage', async () => {
     req.body = {
       ...req.body,
-      path: 'user/not-found.pdf',
+      path: 'test-user-id/not-found.pdf', // Must have correct userId prefix
     }
 
     await handler(req as VercelRequest, res as VercelResponse)

@@ -49,6 +49,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return
     }
 
+    // Authorize storage path: ensure it belongs to the authenticated user
+    // Path format: {userId}/{fileName}
+    const expectedPrefix = `${userId}/`
+    if (!path.startsWith(expectedPrefix)) {
+      res.status(403).json({
+        status: 'error',
+        error: 'Unauthorized: path does not belong to authenticated user',
+      })
+      return
+    }
+
     // Download file from Supabase Storage
     const supabase = getStorageClient()
     const { data: fileData, error: downloadError } = await supabase.storage
