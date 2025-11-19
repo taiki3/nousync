@@ -25,7 +25,12 @@
   - `supabase/migrations/0004_pgroonga.sql`（PGroonga利用時）
   - `supabase/migrations/0005_rls.sql`
   - `supabase/migrations/0006_embeddings_index.sql`
-- 実行後、`projects/documents/conversations/messages/embeddings` が作成され、RLSが有効になります
+  - `supabase/migrations/0007_embeddings_rls.sql`
+  - `supabase/migrations/0008_create_user_id_function.sql`
+  - `supabase/migrations/0009_update_rls_to_use_new_function.sql`
+  - `supabase/migrations/0010_conversation_documents.sql`
+  - `supabase/migrations/0011_storage_buckets.sql`（Storage設定）
+- 実行後、`projects/documents/conversations/messages/embeddings` が作成され、RLSとStorageバケットが有効になります
 
 4) Connection Pooler のURI取得（DATABASE_URL）
 - Settings → Database → Connection pooling → `Pooled connection string (URI)` をコピー
