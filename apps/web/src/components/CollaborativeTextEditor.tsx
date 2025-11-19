@@ -40,6 +40,7 @@ export default function CollaborativeTextEditor({
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
   const currentDocumentIdRef = useRef<string | undefined>(undefined)
+  const hasLocalChangesRef = useRef(false)
   const onUpdateRef = useRef(onDocumentUpdate)
 
   // ドキュメントIDのみを依存配列に使用（documentオブジェクト全体だと毎回再初期化される）
@@ -64,6 +65,9 @@ export default function CollaborativeTextEditor({
       }
       return
     }
+
+    // 新しいドキュメントでは「ユーザー編集あり」フラグをリセット
+    hasLocalChangesRef.current = false
 
     // Y.js ドキュメントを作成
     const ydoc = new Y.Doc()
@@ -126,8 +130,12 @@ export default function CollaborativeTextEditor({
       const newContent = ytext.toString()
       setContent(newContent)
 
-      // ローカル/リモート問わず、マージ後の状態をバックエンドに保存（デバウンス）
-      // リモート更新でもCRDTマージ後の最終状態を保存することでデータ損失を防ぐ
+      // 初期シードや同期のみでユーザー編集が行われていない場合は保存しない
+      if (!hasLocalChangesRef.current) {
+        return
+      }
+
+      // ユーザー編集を含む変更のみ、マージ後の状態をバックエンドに保存（デバウンス）
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current)
       }
@@ -175,6 +183,9 @@ export default function CollaborativeTextEditor({
     const ytext = ytextRef.current
 
     if (!ytext || !textareaRef.current) return
+
+    // このセッションでユーザー編集が行われたことを記録
+    hasLocalChangesRef.current = true
 
     // カーソル位置を保持
     const cursorStart = textareaRef.current.selectionStart

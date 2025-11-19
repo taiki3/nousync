@@ -190,6 +190,17 @@ describe('CollaborativeTextEditor - Advanced Behavior', () => {
     cleanup()
   })
 
+  it('does not call onDocumentUpdate on initial seed without user edits', async () => {
+    render(<CollaborativeTextEditor document={mockDocumentA} onDocumentUpdate={mockOnUpdate} />)
+
+    // IndexedDB 同期完了（初期シード実行）
+    __testUtils.resolveWhenSynced('doc-A')
+    await Promise.resolve()
+
+    // ユーザー入力がない場合はバックエンド保存が走らない
+    expect(mockOnUpdate).not.toHaveBeenCalled()
+  })
+
   it('flushes debounced save on unmount', async () => {
     const { unmount, container } = render(
       <CollaborativeTextEditor document={mockDocumentA} onDocumentUpdate={mockOnUpdate} />,
