@@ -1,5 +1,5 @@
 import type { Document } from '@nousync/shared'
-import { Edit3, Eye, Plus, Tag, Trash2, X } from 'lucide-react'
+import { Check, Edit3, Eye, Loader2, Plus, Tag, Trash2, X } from 'lucide-react'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -248,15 +248,29 @@ export default function CollaborativeTextEditor({
     <div className="flex flex-col h-full">
       {/* ヘッダー */}
       <div className="flex items-center justify-between p-4 border-b">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <h2 className="text-lg font-semibold">{title}</h2>
           {/* 二段同期表示 */}
-          <span className={"text-xs " + (isPersistenceSynced ? 'text-green-600' : 'text-amber-600')}>
-            ローカル: {isPersistenceSynced ? '復元済み' : '復元中...'}
-          </span>
-          <span className={"text-xs " + (isRealtimeSynced ? 'text-green-600' : 'text-amber-600')}>
-            リアルタイム: {isRealtimeSynced ? '同期済み' : '同期中...'}
-          </span>
+          <div className="flex items-center gap-1 text-xs">
+            {isPersistenceSynced ? (
+              <Check className="h-4 w-4 text-green-600" />
+            ) : (
+              <Loader2 className="h-4 w-4 text-amber-600 animate-spin" />
+            )}
+            <span className={isPersistenceSynced ? 'text-green-600' : 'text-amber-600'}>
+              ローカル
+            </span>
+          </div>
+          <div className="flex items-center gap-1 text-xs">
+            {isRealtimeSynced ? (
+              <Check className="h-4 w-4 text-green-600" />
+            ) : (
+              <Loader2 className="h-4 w-4 text-amber-600 animate-spin" />
+            )}
+            <span className={isRealtimeSynced ? 'text-green-600' : 'text-amber-600'}>
+              リアルタイム
+            </span>
+          </div>
         </div>
         <Button variant="ghost" size="icon" onClick={handleDelete} aria-label="delete-document">
           <Trash2 className="h-4 w-4" />
