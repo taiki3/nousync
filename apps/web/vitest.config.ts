@@ -1,0 +1,23 @@
+import { defineConfig } from 'vitest/config'
+import react from '@vitejs/plugin-react'
+import path from 'path'
+
+export default defineConfig({
+  plugins: [react()],
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.ts'],
+    css: true,
+    include: ['src/**/*.test.{ts,tsx}'],
+    pool: 'threads',
+    // Single-threaded execution to ensure test isolation
+    // Prevents mock state conflicts with SupabaseProvider instances
+    maxWorkers: 1,
+  },
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
+})
