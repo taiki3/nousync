@@ -1,4 +1,4 @@
-import { type Session, type User } from '@supabase/supabase-js'
+import { type Session, type SupabaseClient, type User } from '@supabase/supabase-js'
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { createApiClient } from '../services/api/client'
@@ -17,6 +17,7 @@ interface AuthContextType {
   checkAndRefreshToken: () => Promise<boolean>
   handleAuthError: (error: { status: number }) => void
   apiClientReady: boolean
+  supabase: SupabaseClient
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -27,6 +28,7 @@ const AuthContext = createContext<AuthContextType>({
   checkAndRefreshToken: async () => false,
   handleAuthError: () => {},
   apiClientReady: false,
+  supabase,
 })
 
 export { AuthContext }
@@ -165,6 +167,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         checkAndRefreshToken,
         handleAuthError,
         apiClientReady,
+        supabase,
       }}
     >
       {children}
