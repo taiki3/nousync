@@ -251,23 +251,31 @@ export default function CollaborativeTextEditor({
         <div className="flex items-center gap-3">
           <h2 className="text-lg font-semibold">{title}</h2>
           {/* 二段同期表示 */}
-          <div className="flex items-center gap-1 text-xs">
+          <div
+            className="flex items-center gap-1 text-xs"
+            role="status"
+            aria-label={isPersistenceSynced ? 'ローカル: 復元済み' : 'ローカル: 復元中'}
+          >
             {isPersistenceSynced ? (
-              <Check className="h-4 w-4 text-green-600" />
+              <Check className="h-4 w-4 text-green-600" aria-hidden="true" />
             ) : (
-              <Loader2 className="h-4 w-4 text-amber-600 animate-spin" />
+              <Loader2 className="h-4 w-4 text-amber-600 animate-spin" aria-hidden="true" />
             )}
-            <span className={isPersistenceSynced ? 'text-green-600' : 'text-amber-600'}>
+            <span className={isPersistenceSynced ? 'text-green-600' : 'text-amber-600'} aria-hidden="true">
               ローカル
             </span>
           </div>
-          <div className="flex items-center gap-1 text-xs">
+          <div
+            className="flex items-center gap-1 text-xs"
+            role="status"
+            aria-label={isRealtimeSynced ? 'リアルタイム: 同期済み' : 'リアルタイム: 同期中'}
+          >
             {isRealtimeSynced ? (
-              <Check className="h-4 w-4 text-green-600" />
+              <Check className="h-4 w-4 text-green-600" aria-hidden="true" />
             ) : (
-              <Loader2 className="h-4 w-4 text-amber-600 animate-spin" />
+              <Loader2 className="h-4 w-4 text-amber-600 animate-spin" aria-hidden="true" />
             )}
-            <span className={isRealtimeSynced ? 'text-green-600' : 'text-amber-600'}>
+            <span className={isRealtimeSynced ? 'text-green-600' : 'text-amber-600'} aria-hidden="true">
               リアルタイム
             </span>
           </div>
