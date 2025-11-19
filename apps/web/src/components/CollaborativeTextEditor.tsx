@@ -40,7 +40,6 @@ export default function CollaborativeTextEditor({
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
   const currentDocumentIdRef = useRef<string | undefined>(undefined)
-  const hasLocalChangesRef = useRef(false)
   const onUpdateRef = useRef(onDocumentUpdate)
 
   // ドキュメントIDのみを依存配列に使用（documentオブジェクト全体だと毎回再初期化される）
@@ -65,9 +64,6 @@ export default function CollaborativeTextEditor({
       }
       return
     }
-
-    // 新しいドキュメントでは「ユーザー編集あり」フラグをリセット
-    hasLocalChangesRef.current = false
 
     // Y.js ドキュメントを作成
     const ydoc = new Y.Doc()
@@ -100,7 +96,7 @@ export default function CollaborativeTextEditor({
         ydoc.transact(() => {
           meta.set('seeded', true)
           ytext.insert(0, document.content)
-        })
+        }, 'seed')
       }
 
       // オフライン編集が復元された場合、リアルタイム同期後にバックエンドに保存
@@ -126,12 +122,12 @@ export default function CollaborativeTextEditor({
     setTags(document.tags || [])
 
     // Y.Text の変更を監視してテキストエリアを更新
-    const handleYTextChange = () => {
+    const handleYTextChange = (_event: Y.YTextEvent, transaction: Y.Transaction) => {
       const newContent = ytext.toString()
       setContent(newContent)
 
-      // 初期シードや同期のみでユーザー編集が行われていない場合は保存しない
-      if (!hasLocalChangesRef.current) {
+      // 初期シード(origin: 'seed')による変更はバックエンド保存の対象外
+      if (transaction.origin === 'seed') {
         return
       }
 
@@ -183,9 +179,6 @@ export default function CollaborativeTextEditor({
     const ytext = ytextRef.current
 
     if (!ytext || !textareaRef.current) return
-
-    // このセッションでユーザー編集が行われたことを記録
-    hasLocalChangesRef.current = true
 
     // カーソル位置を保持
     const cursorStart = textareaRef.current.selectionStart
