@@ -153,8 +153,8 @@ export class AIProvider {
       temperature: 0.7,
     }
 
-    // Newer models like gpt-4o use max_completion_tokens
-    if (modelId.includes('gpt-4o') || modelId.includes('gpt-4-turbo')) {
+    // GPT-4o, GPT-4-turbo, GPT-5.x use max_completion_tokens
+    if (modelId.includes('gpt-4o') || modelId.includes('gpt-4-turbo') || modelId.includes('gpt-5')) {
       params.max_completion_tokens = 2000
     } else {
       params.max_tokens = 2000
@@ -178,7 +178,8 @@ export class AIProvider {
       stream: true,
     }
 
-    if (modelId.includes('gpt-4o') || modelId.includes('gpt-4-turbo')) {
+    // GPT-4o, GPT-4-turbo, GPT-5.x use max_completion_tokens
+    if (modelId.includes('gpt-4o') || modelId.includes('gpt-4-turbo') || modelId.includes('gpt-5')) {
       params.max_completion_tokens = 2000
     } else {
       params.max_tokens = 2000
