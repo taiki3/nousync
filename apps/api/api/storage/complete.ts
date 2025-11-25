@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import * as nodePath from 'node:path'
 import { getUserIdFromRequest } from '../../lib/auth.js'
 import { getStorageClient, BUCKET_NAME } from '../../lib/storage.js'
 import { extractText, isTextExtractionSupported } from '../../lib/text-extractor.js'
@@ -51,8 +52,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Authorize storage path: ensure it belongs to the authenticated user
     // Path format: {userId}/{fileName}
+    // Normalize path to prevent traversal attacks (e.g., "user-id/../other-user/file")
+    const normalizedPath = nodePath.normalize(path).replace(/^\/+/, '')
     const expectedPrefix = `${userId}/`
-    if (!path.startsWith(expectedPrefix)) {
+    if (!normalizedPath.startsWith(expectedPrefix)) {
       res.status(403).json({
         status: 'error',
         error: 'Unauthorized: path does not belong to authenticated user',
@@ -60,11 +63,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return
     }
 
-    // Download file from Supabase Storage
+    // Download file from Supabase Storage using normalized path
     const supabase = getStorageClient()
     const { data: fileData, error: downloadError } = await supabase.storage
       .from(BUCKET_NAME)
-      .download(path)
+      .download(normalizedPath)
 
     if (downloadError || !fileData) {
       res.status(404).json({

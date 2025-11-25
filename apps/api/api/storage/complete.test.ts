@@ -200,6 +200,40 @@ describe('/api/storage/complete', () => {
     })
   })
 
+  it('should return 403 when path contains traversal attack', async () => {
+    req.body = {
+      path: 'test-user-id/../another-user-id/document.pdf', // Path traversal attempt
+      fileName: 'document.pdf',
+      fileType: 'application/pdf',
+      fileSize: 1024,
+    }
+
+    await handler(req as VercelRequest, res as VercelResponse)
+
+    expect(statusMock).toHaveBeenCalledWith(403)
+    expect(jsonMock).toHaveBeenCalledWith({
+      status: 'error',
+      error: expect.stringContaining('Unauthorized'),
+    })
+  })
+
+  it('should return 403 when path starts with ../', async () => {
+    req.body = {
+      path: '../test-user-id/document.pdf', // Starts with traversal
+      fileName: 'document.pdf',
+      fileType: 'application/pdf',
+      fileSize: 1024,
+    }
+
+    await handler(req as VercelRequest, res as VercelResponse)
+
+    expect(statusMock).toHaveBeenCalledWith(403)
+    expect(jsonMock).toHaveBeenCalledWith({
+      status: 'error',
+      error: expect.stringContaining('Unauthorized'),
+    })
+  })
+
   it('should process upload and create document', async () => {
     await handler(req as VercelRequest, res as VercelResponse)
 
