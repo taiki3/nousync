@@ -180,9 +180,7 @@ function App() {
     // ローカルステートを即座に更新（UI応答性向上）
     const updateData = tags !== undefined ? { content, tags } : { content }
     setDocuments((docs) => docs.map((doc) => (doc.id === id ? { ...doc, ...updateData } : doc)))
-    if (selectedDocument?.id === id) {
-      setSelectedDocument((prev) => (prev ? { ...prev, ...updateData } : null))
-    }
+    setSelectedDocument((prev) => (prev?.id === id ? { ...prev, ...updateData } : prev))
 
     // DBに保存
     try {
@@ -190,9 +188,7 @@ function App() {
 
       // サーバーから返されたドキュメント（タイトルが更新されている可能性がある）で更新
       setDocuments((docs) => docs.map((doc) => (doc.id === id ? updatedDoc : doc)))
-      if (selectedDocument?.id === id) {
-        setSelectedDocument(updatedDoc)
-      }
+      setSelectedDocument((prev) => (prev?.id === id ? updatedDoc : prev))
     } catch (error) {
       if (error instanceof ApiError) {
       } else {
@@ -223,9 +219,7 @@ function App() {
       setDocuments((docs) => docs.filter((doc) => doc.id !== id))
 
       // 削除されたドキュメントが選択されていた場合は選択を解除
-      if (selectedDocument?.id === id) {
-        setSelectedDocument(null)
-      }
+      setSelectedDocument((prev) => (prev?.id === id ? null : prev))
     } catch (error) {
       if (error instanceof ApiError) {
         alert('ドキュメントの削除に失敗しました')
