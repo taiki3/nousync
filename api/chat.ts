@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { getUserIdFromRequest } from '../lib/auth.js'
-import { withRls } from '../lib/db.js'
-import { AIProvider } from '../lib/ai-providers.js'
+import { getUserIdFromRequest } from './lib/auth.js'
+import { withRls } from './lib/db.js'
+import { AIProvider } from './lib/ai-providers.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
