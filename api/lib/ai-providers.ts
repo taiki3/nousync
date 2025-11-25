@@ -413,17 +413,16 @@ export class AIProvider {
       const client = getOpenAIClient()
       const response = await client.models.list()
 
-      // Filter for chat models only
+      // Filter for GPT-5.1 models only
       const chatModels = response.data
         .filter(model =>
-          model.id.includes('gpt') &&
-          !model.id.includes('instruct') &&
-          !model.id.includes('vision')
+          model.id.includes('gpt-5.1') &&
+          !model.id.includes('chat-latest') // exclude aliases
         )
         .map(model => ({
           provider: 'openai',
           modelId: model.id,
-          displayName: model.id.split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ')
+          displayName: model.id.replace('gpt-5.1', 'GPT-5.1').replace(/-/g, ' ').replace('codex', 'Codex').replace('mini', 'Mini')
         }))
 
       return chatModels.length > 0 ? chatModels : this.getDefaultOpenAIModels()
@@ -435,10 +434,9 @@ export class AIProvider {
 
   private static getDefaultOpenAIModels(): AIModel[] {
     return [
-      { provider: 'openai', modelId: 'gpt-4o', displayName: 'GPT-4o' },
-      { provider: 'openai', modelId: 'gpt-4o-mini', displayName: 'GPT-4o Mini' },
-      { provider: 'openai', modelId: 'gpt-4-turbo', displayName: 'GPT-4 Turbo' },
-      { provider: 'openai', modelId: 'gpt-3.5-turbo', displayName: 'GPT-3.5 Turbo' }
+      { provider: 'openai', modelId: 'gpt-5.1', displayName: 'GPT-5.1' },
+      { provider: 'openai', modelId: 'gpt-5.1-codex', displayName: 'GPT-5.1 Codex' },
+      { provider: 'openai', modelId: 'gpt-5.1-codex-mini', displayName: 'GPT-5.1 Codex Mini' }
     ]
   }
 
@@ -478,16 +476,19 @@ export class AIProvider {
             const name = model.name?.toLowerCase() || ''
             const supportedMethods = model.supportedGenerationMethods || []
 
-            // チャットモデルのみを選択（Gemini Pro、Flash、Ultraなど）
+            // チャットモデルのみを選択（Gemini 2.5系、3.0系）
             const isChatModel = supportedMethods.includes('generateContent') &&
               !name.includes('embedding') &&
               !name.includes('aqa') &&  // AQA (Attributed Question Answering) モデルを除外
-              !name.includes('nano') &&  // Nanoモデルを除外
+              !name.includes('tts') &&  // TTSモデルを除外
+              !name.includes('image') &&  // 画像生成モデルを除外
+              !name.includes('computer-use') &&  // Computer Useモデルを除外
+              !name.includes('gemma') &&  // Gemmaモデルを除外
               (
-                name.includes('gemini-pro') ||
-                name.includes('gemini-flash') ||
-                name.includes('gemini-ultra') ||
-                (name.includes('gemini') && (name.includes('2.5') || name.includes('2-5')))
+                // Gemini 2.5系
+                (name.includes('gemini') && (name.includes('2.5') || name.includes('2-5'))) ||
+                // Gemini 3.0系
+                (name.includes('gemini-3') || name.includes('gemini-3.0'))
               )
 
             return isChatModel
@@ -508,6 +509,7 @@ export class AIProvider {
 
   private static getDefaultGeminiModels(): AIModel[] {
     return [
+      { provider: 'google', modelId: 'gemini-3-pro-preview', displayName: 'Gemini 3 Pro' },
       { provider: 'google', modelId: 'gemini-2.5-flash', displayName: 'Gemini 2.5 Flash' },
       { provider: 'google', modelId: 'gemini-2.5-pro', displayName: 'Gemini 2.5 Pro' }
     ]
@@ -530,14 +532,9 @@ export class AIProvider {
     // Anthropic models - static list (no list API available)
     if (process.env.ANTHROPIC_API_KEY) {
       models.push(
-        { provider: 'anthropic', modelId: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5' },
-        { provider: 'anthropic', modelId: 'claude-sonnet-4-20250514', displayName: 'Claude Sonnet 4' },
-        { provider: 'anthropic', modelId: 'claude-3-7-sonnet-latest', displayName: 'Claude 3.7 Sonnet Latest' },
-        { provider: 'anthropic', modelId: 'claude-opus-4-1-20250805', displayName: 'Claude Opus 4.1' },
-        { provider: 'anthropic', modelId: 'claude-opus-4-20250514', displayName: 'Claude Opus 4' },
-        { provider: 'anthropic', modelId: 'claude-3-5-sonnet-20241022', displayName: 'Claude 3.5 Sonnet' },
-        { provider: 'anthropic', modelId: 'claude-3-opus-20240229', displayName: 'Claude 3 Opus' },
-        { provider: 'anthropic', modelId: 'claude-3-haiku-20240307', displayName: 'Claude 3 Haiku' }
+        { provider: 'anthropic', modelId: 'claude-sonnet-4-5', displayName: 'Claude Sonnet 4.5' },
+        { provider: 'anthropic', modelId: 'claude-haiku-4-5', displayName: 'Claude Haiku 4.5' },
+        { provider: 'anthropic', modelId: 'claude-opus-4-5', displayName: 'Claude Opus 4.5' }
       )
     }
 
