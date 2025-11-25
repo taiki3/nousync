@@ -108,7 +108,6 @@ describe('CollaborativeTextEditor - Basic Functionality', () => {
 
   afterEach(() => {
     cleanup()
-    vi.useRealTimers()
   })
 
   it('should render without document', () => {
@@ -261,9 +260,8 @@ describe('CollaborativeTextEditor - Advanced Behavior', () => {
     // whenSynced を解決してローカル復元済み表示
     __testUtils.resolveWhenSynced()
 
-    // ラベルの存在を確認（非同期更新を待つ）
-    expect(await screen.findByText('ローカル: 復元済み')).toBeTruthy()
-    expect(await screen.findByText('リアルタイム: 同期済み')).toBeTruthy()
+    expect(await screen.findByLabelText('ローカル: 復元済み')).toBeTruthy()
+    expect(await screen.findByLabelText('リアルタイム: 同期済み')).toBeTruthy()
   })
 
   it('calls provider.destroyPersistence on delete', async () => {
@@ -281,7 +279,8 @@ describe('CollaborativeTextEditor - Advanced Behavior', () => {
     )
 
     // Provider初期化完了の目安（ラベル表示）
-    await screen.findByText('リアルタイム: 同期済み')
+    __testUtils.resolveWhenSynced('doc-A')
+    await screen.findByLabelText('リアルタイム: 同期済み')
 
     // 削除ボタンをクリック
     const deleteButton = screen.getByLabelText('delete-document')

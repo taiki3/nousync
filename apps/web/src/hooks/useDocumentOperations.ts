@@ -37,9 +37,7 @@ export function useDocumentOperations() {
       // Optimistic update
       setDocuments((prev) => prev.map((doc) => (doc.id === id ? { ...doc, ...updates } : doc)))
 
-      if (selectedDocument?.id === id) {
-        setSelectedDocument((prev) => (prev ? { ...prev, ...updates } : null))
-      }
+      setSelectedDocument((prev) => (prev?.id === id ? { ...prev, ...updates } : prev))
 
       // Server update
       const updatedDoc = await executeApi(() => documentsApi.update(id, updates))
@@ -48,14 +46,12 @@ export function useDocumentOperations() {
         // Sync with server response
         setDocuments((prev) => prev.map((doc) => (doc.id === id ? (updatedDoc as Document) : doc)))
 
-        if (selectedDocument?.id === id) {
-          setSelectedDocument(updatedDoc as Document)
-        }
+        setSelectedDocument((prev) => (prev?.id === id ? (updatedDoc as Document) : prev))
       }
 
       return updatedDoc
     },
-    [executeApi, selectedDocument],
+    [executeApi],
   )
 
   const deleteDocument = useCallback(
@@ -65,12 +61,10 @@ export function useDocumentOperations() {
       if (success !== null) {
         setDocuments((prev) => prev.filter((doc) => doc.id !== id))
 
-        if (selectedDocument?.id === id) {
-          setSelectedDocument(null)
-        }
+        setSelectedDocument((prev) => (prev?.id === id ? null : prev))
       }
     },
-    [executeApi, selectedDocument],
+    [executeApi],
   )
 
   const loadDocuments = useCallback(async () => {
