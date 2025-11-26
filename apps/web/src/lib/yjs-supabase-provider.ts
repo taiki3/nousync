@@ -297,19 +297,25 @@ export class SupabaseProvider {
     if (origin !== this && origin !== 'db-sync') {
       // バッチ処理で送信
       this.broadcaster.queue(update)
-      // DB への保存をスケジュール
-      this.scheduleSaveToDatabase()
+      // DB同期が完了している場合のみ保存をスケジュール
+      // 同期前に保存すると不完全な状態で上書きしてしまう
+      if (this.dbSynced) {
+        this.scheduleSaveToDatabase()
+      }
     }
   }
 
   public disconnect() {
-    // 保存タイマーがあればキャンセルして即座に保存
+    // 保存タイマーがあればキャンセル
     if (this.saveTimer) {
       clearTimeout(this.saveTimer)
       this.saveTimer = null
     }
-    // 未保存の変更を DB に保存
-    this.saveToDatabase()
+    // DB同期が完了している場合のみ保存を実行
+    // 同期前に保存すると不完全な状態で上書きしてデータロスを引き起こす
+    if (this.dbSynced) {
+      this.saveToDatabase()
+    }
 
     // ブロードキャスターを破棄（残りの更新をflush）
     this.broadcaster.destroy()
