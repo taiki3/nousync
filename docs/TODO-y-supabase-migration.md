@@ -1,154 +1,197 @@
-# y-supabase 移行計画
+# Realtime 通信量削減計画
 
-## 概要
+## 現状の問題点
 
-現在のカスタム `SupabaseProvider` を [y-supabase](https://github.com/AlexDunmow/y-supabase) パッケージに移行する。
+現在の `SupabaseProvider` 実装では以下の通信量問題がある：
 
-## 現状と移行先の比較
+### 1. 初期同期時の爆発的通信
+```
+Client A (既存) ─────────────────────────────────────────
+Client B (既存) ─────────────────────────────────────────
+Client C (新規) ──┬─ sync-request ──────────────────────→
+                 │
+                 ├─ sync-response (全状態) ←── Client A
+                 ├─ sync-response (全状態) ←── Client B
+                 └─ update (ローカル状態全体) ─────────→
+```
+- 新規接続で **全クライアントが全状態を送信**
+- N人接続中 → N回の全状態送信
 
-| 項目 | 現在の実装 | y-supabase |
-|------|-----------|------------|
-| リアルタイム同期 | Supabase Broadcast | Supabase Realtime |
-| サーバー永続化 | `onDocumentUpdate` コールバック経由 | Supabase テーブルに直接保存 |
-| ローカル永続化 | `y-indexeddb` | なし（要併用） |
-| Awareness | 未実装 | 対応 |
-| 再同期 | sync-request/response 独自プロトコル | `resyncInterval` で定期同期 |
+### 2. 差分なしの全状態送信
+- `Y.encodeStateAsUpdate(doc)` は全状態をエンコード
+- State Vector を使った差分同期をしていない
 
-## 注意事項
-
-> ⚠️ y-supabase は開発初期段階。本番利用は非推奨とされている。
-> Weekly downloads: ~94、最終更新から1年以上経過。
-
-### 代替案の検討
-
-- **現状維持**: カスタム実装を継続改善
-- **@kamick/supabaseprovider**: 別の Supabase provider（同様に本番非推奨）
-- **y-websocket + 自前サーバー**: より安定したアプローチだが運用コスト増
-
----
-
-## 移行タスク
-
-### Phase 1: 準備（完了済み）
-
-- [x] 現在の実装のテスト拡充
-  - [x] `SupabaseProvider` ユニットテスト
-  - [x] `calculateDelta` テスト
-  - [x] 同期エッジケーステスト
-
-### Phase 2: スキーマ変更
-
-- [ ] Supabase テーブルに `document` カラム追加
-  ```sql
-  ALTER TABLE documents ADD COLUMN yjs_state BYTEA;
-  ```
-- [ ] Row Level Security (RLS) ポリシー更新
-- [ ] マイグレーションスクリプト作成
-
-### Phase 3: 実装
-
-- [ ] y-supabase インストール
-  ```bash
-  pnpm --filter @nousync/web add y-supabase
-  ```
-
-- [ ] Provider 差し替え
-  ```typescript
-  // Before
-  const provider = new SupabaseProvider(documentId, doc, supabase)
-
-  // After
-  import { SupabaseProvider } from 'y-supabase'
-  const provider = new SupabaseProvider(doc, supabase, {
-    channel: documentId,
-    id: documentId,
-    tableName: 'documents',
-    columnName: 'yjs_state',
-    resyncInterval: 5000,
-  })
-  ```
-
-- [ ] IndexedDB 永続化の併用
-  ```typescript
-  // y-supabase はローカル永続化を持たないので併用
-  import { IndexeddbPersistence } from 'y-indexeddb'
-  const persistence = new IndexeddbPersistence(documentId, doc)
-  ```
-
-- [ ] `onDocumentUpdate` コールバックの廃止または調整
-  - y-supabase が直接 DB に保存するため不要になる可能性
-  - タグなどの非 CRDT データの保存方法を検討
-
-### Phase 4: 機能追加
-
-- [ ] Awareness 実装（カーソル位置、ユーザー名表示）
-  ```typescript
-  provider.awareness.setLocalStateField('user', {
-    name: user.name,
-    color: userColor,
-  })
-  ```
-
-- [ ] 接続状態 UI の改善
-  - `connect`, `disconnect`, `error` イベントの活用
-
-### Phase 5: テスト・検証
-
-- [ ] 既存テストの更新（Provider モックの差し替え）
-- [ ] 手動テスト
-  - [ ] 複数タブでの同時編集
-  - [ ] オフライン → オンライン復帰
-  - [ ] 大量テキストの同期性能
-  - [ ] 既存ドキュメントの互換性
-
-### Phase 6: 既存データ移行
-
-- [ ] 既存ドキュメントの `content` → `yjs_state` 変換スクリプト
-- [ ] 移行中のダウンタイム計画
-- [ ] ロールバック手順
+### 3. 更新の即時ブロードキャスト
+- キー入力ごとに即座にブロードキャスト
+- デバウンスなし
 
 ---
 
-## API 差分メモ
+## 改善方針
 
-### イベント
+### Phase 1: State Vector による差分同期
 
-| y-supabase イベント | 用途 |
-|---------------------|------|
-| `message` | リアルタイム更新受信 |
-| `awareness` | ユーザー状態変更 |
-| `save` | ローカル変更保存後 |
-| `status` | 接続状態変更 |
-| `connect` | 接続確立 |
-| `error` | エラー発生 |
-
-### オプション
+Y.js の State Vector を使って必要な差分のみを送信する。
 
 ```typescript
-interface SupabaseProviderOptions {
-  channel: string      // Realtime チャンネル名
-  id?: string          // ドキュメント識別子（デフォルト: "id"）
-  tableName: string    // Supabase テーブル名
-  columnName: string   // Y.Doc 保存カラム名
-  resyncInterval?: number | false  // 再同期間隔（デフォルト: 5000ms）
+// Before: 全状態を送信
+const state = Y.encodeStateAsUpdate(this.doc)
+
+// After: 相手の State Vector との差分のみ
+const stateVector = Y.encodeStateVector(this.doc)
+// sync-request で stateVector を送信
+
+// 受信側: 差分のみを計算して返す
+const diff = Y.encodeStateAsUpdate(this.doc, receivedStateVector)
+```
+
+**期待効果**: 初期同期の通信量を大幅削減（特に大きなドキュメント）
+
+### Phase 2: サーバーサイド永続化（単一ソース化）
+
+P2P の sync-request/response を廃止し、サーバー（Supabase DB）を単一ソースにする。
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Supabase DB                          │
+│              documents.yjs_state (bytea)                │
+└─────────────────────────────────────────────────────────┘
+        ↑ save                              ↓ load
+        │                                   │
+   ┌────┴────┐                         ┌────┴────┐
+   │Client A │ ←── Realtime update ──→ │Client B │
+   └─────────┘                         └─────────┘
+```
+
+**メリット**:
+- 新規接続時に DB から1回読み込むだけ
+- 他クライアントは差分更新のみ送信
+- オフライン復帰時も DB と同期
+
+**実装**:
+```sql
+-- マイグレーション
+ALTER TABLE documents ADD COLUMN yjs_state BYTEA;
+```
+
+```typescript
+// 初期同期: DB から読み込み
+const { data } = await supabase
+  .from('documents')
+  .select('yjs_state')
+  .eq('id', documentId)
+  .single()
+
+if (data?.yjs_state) {
+  Y.applyUpdate(doc, new Uint8Array(data.yjs_state))
 }
+
+// 定期保存 or 変更時保存
+const state = Y.encodeStateAsUpdate(doc)
+await supabase
+  .from('documents')
+  .update({ yjs_state: state })
+  .eq('id', documentId)
+```
+
+### Phase 3: 更新のバッチ処理
+
+細かい更新をまとめて送信。
+
+```typescript
+class BatchedBroadcaster {
+  private pendingUpdates: Uint8Array[] = []
+  private flushTimer: NodeJS.Timeout | null = null
+  private readonly BATCH_INTERVAL = 50 // ms
+
+  queue(update: Uint8Array) {
+    this.pendingUpdates.push(update)
+
+    if (!this.flushTimer) {
+      this.flushTimer = setTimeout(() => this.flush(), this.BATCH_INTERVAL)
+    }
+  }
+
+  private flush() {
+    if (this.pendingUpdates.length === 0) return
+
+    // 複数の更新をマージ
+    const merged = Y.mergeUpdates(this.pendingUpdates)
+    this.channel.send({
+      type: 'broadcast',
+      event: 'update',
+      payload: { update: Array.from(merged) },
+    })
+
+    this.pendingUpdates = []
+    this.flushTimer = null
+  }
+}
+```
+
+**期待効果**: 高速タイピング時の通信回数を削減
+
+### Phase 4: 圧縮（オプション）
+
+大きな更新データを圧縮。
+
+```typescript
+import { compress, decompress } from 'fflate'
+
+// 送信時
+const compressed = compress(update)
+if (compressed.length < update.length) {
+  payload = { update: Array.from(compressed), compressed: true }
+} else {
+  payload = { update: Array.from(update) }
+}
+
+// 受信時
+const data = payload.compressed
+  ? decompress(new Uint8Array(payload.update))
+  : new Uint8Array(payload.update)
 ```
 
 ---
 
-## リスクと対策
+## タスク一覧
 
-| リスク | 対策 |
-|--------|------|
-| パッケージのメンテナンス停止 | Fork して自前管理、または現状維持 |
-| API 破壊的変更 | バージョン固定、テストで検知 |
-| 性能問題 | `resyncInterval` 調整、必要に応じて Supabase Realtime 設定見直し |
-| オフライン時のデータロス | y-indexeddb 併用で対応 |
+### Phase 1: State Vector 差分同期
+- [ ] sync-request に State Vector を含める
+- [ ] sync-response で差分のみ返す
+- [ ] 接続時のローカル状態送信も差分化
+- [ ] テスト更新
+
+### Phase 2: サーバーサイド永続化
+- [ ] `documents` テーブルに `yjs_state` カラム追加
+- [ ] 初期同期を DB 経由に変更
+- [ ] 定期保存 or 変更時保存の実装
+- [ ] sync-request/response の廃止（Realtime は差分更新のみ）
+- [ ] 既存データのマイグレーション
+
+### Phase 3: バッチ処理
+- [ ] `BatchedBroadcaster` クラス実装
+- [ ] バッチ間隔の調整（50ms がよいか検証）
+- [ ] unmount 時の flush 処理
+
+### Phase 4: 圧縮（優先度低）
+- [ ] fflate 導入
+- [ ] 圧縮/非圧縮の閾値決定
+- [ ] 後方互換性の考慮
 
 ---
 
-## 参考リンク
+## 優先順位
 
-- [y-supabase GitHub](https://github.com/AlexDunmow/y-supabase)
-- [Yjs Community: Supabase for yjs](https://discuss.yjs.dev/t/supabase-for-yjs/1480)
-- [Supabase Realtime Docs](https://supabase.com/docs/guides/realtime)
+1. **Phase 2（サーバーサイド永続化）** - 最も効果が大きい
+2. **Phase 1（State Vector）** - Phase 2 と組み合わせて効果的
+3. **Phase 3（バッチ処理）** - 追加の最適化
+4. **Phase 4（圧縮）** - 必要に応じて
+
+---
+
+## 参考
+
+- [Y.js Docs: Document Updates](https://docs.yjs.dev/api/document-updates)
+- [Y.js Docs: State Vector](https://docs.yjs.dev/api/document-updates#state-vector)
+- [Supabase Realtime Quotas](https://supabase.com/docs/guides/realtime/quotas)
