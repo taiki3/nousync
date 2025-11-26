@@ -350,31 +350,19 @@ export class AIProvider {
         throw new Error(`Gemini API error: ${response.statusText}`)
       }
 
-      const reader = response.body?.getReader()
-      if (!reader) throw new Error('No response body')
+      // Cloudflare Gateway returns JSON array, not SSE stream
+      const data = await response.json()
 
-      const decoder = new TextDecoder()
-      let buffer = ''
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || ''
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6))
-              const text = data.candidates?.[0]?.content?.parts?.[0]?.text
-              if (text) yield text
-            } catch (e) {
-              // Skip invalid JSON
-            }
-          }
+      // Handle array response format
+      if (Array.isArray(data)) {
+        for (const item of data) {
+          const text = item.candidates?.[0]?.content?.parts?.[0]?.text
+          if (text) yield text
         }
+      } else {
+        // Single object response
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text
+        if (text) yield text
       }
     } else {
       // Fallback to SDK streaming
