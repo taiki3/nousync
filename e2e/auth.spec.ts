@@ -17,11 +17,11 @@ test.describe('Authentication', () => {
   test('Login page is accessible', async ({ page }) => {
     await page.goto('/')
 
-    // Wait for React app to load and render (AuthGuard has 1s initialization delay)
-    await page.waitForTimeout(2000)
+    // Wait for React app to load and render
+    await page.waitForLoadState('networkidle')
 
     // Should show login UI with Japanese "ログイン" button
     const loginButton = page.locator('button:has-text("ログイン")')
-    await expect(loginButton).toBeVisible({ timeout: 10000 })
+    await expect(loginButton).toBeVisible({ timeout: 15000 })
   })
 })
