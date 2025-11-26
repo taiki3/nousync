@@ -109,24 +109,44 @@ export class SupabaseProvider {
         return
       }
 
+      // DB の状態を一時ドキュメントに読み込んで State Vector を取得
+      // これにより lastSavedStateVector は DB に実際に保存されている状態のみを表す
+      let dbStateVector: Uint8Array | null = null
+
       if (data?.yjs_state) {
-        // base64 エンコードされた bytea を Uint8Array に変換
         const stateArray = this.base64ToUint8Array(data.yjs_state)
         if (stateArray.length > 0) {
+          // DB の State Vector を取得（マージ前に）
+          const tempDoc = new Y.Doc()
+          Y.applyUpdate(tempDoc, stateArray)
+          dbStateVector = Y.encodeStateVector(tempDoc)
+          tempDoc.destroy()
+
           // CRDT マージ：ローカルと DB の状態を統合
           Y.applyUpdate(this.doc, stateArray, 'db-sync')
-          // DB から状態を読み込めた場合のみ lastSavedStateVector を設定
-          this.lastSavedStateVector = Y.encodeStateVector(this.doc)
         }
       }
 
       this.dbSynced = true
 
-      // DB に状態がない場合（新規 or 未保存）、ローカル状態があれば即座に保存
-      if (!this.lastSavedStateVector) {
-        const localState = Y.encodeStateAsUpdate(this.doc)
-        if (localState.length > 2) {  // 空でない場合のみ
+      // DB に保存されている状態の State Vector を記録
+      // （ローカルのオフライン編集は含まない）
+      if (dbStateVector) {
+        this.lastSavedStateVector = dbStateVector
+      }
+
+      // ローカルに DB より新しい変更があれば保存をトリガー
+      const localState = Y.encodeStateAsUpdate(this.doc)
+      if (localState.length > 2) {
+        if (!dbStateVector) {
+          // DB に状態がない場合は即座に保存
           this.saveToDatabase()
+        } else {
+          // DB に状態がある場合、差分があれば保存
+          const diff = Y.encodeStateAsUpdate(this.doc, dbStateVector)
+          if (diff.length > 2) {
+            this.saveToDatabase()
+          }
         }
       }
     } catch (err) {
