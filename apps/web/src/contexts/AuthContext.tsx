@@ -91,7 +91,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const redirectUrl = currentUrl.endsWith('/') ? currentUrl : currentUrl + '/'
 
     const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
+      provider: 'github',
       options: {
         redirectTo: redirectUrl,
       },
