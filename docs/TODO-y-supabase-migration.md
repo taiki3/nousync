@@ -190,6 +190,68 @@ const data = payload.compressed
 
 ---
 
+## UX への影響
+
+### 懸念と対策
+
+| 懸念 | 影響 | 対策 |
+|------|------|------|
+| 初期表示遅延 | 中 | IndexedDB 併用で即座に表示 |
+| オフライン編集 | なし | IndexedDB 維持 |
+| データロス | 低 | beforeunload + Realtime は即時 |
+
+### IndexedDB 併用アーキテクチャ
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      クライアント                            │
+│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐     │
+│  │   Y.Doc     │←──→│  IndexedDB  │    │  Supabase   │     │
+│  │             │    │  (即座)     │    │  Realtime   │     │
+│  └─────────────┘    └─────────────┘    └─────────────┘     │
+│         ↑                                     ↑             │
+│         │ 1. ローカル優先で即座に表示          │             │
+│         │ 2. バックグラウンドでDB同期          │             │
+│         └─────────────────────────────────────┘             │
+└─────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────┐
+│                    Supabase DB                              │
+│              documents.yjs_state (bytea)                    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 同期フロー
+
+```typescript
+// 1. まずローカル（IndexedDB）から即座に表示
+const persistence = new IndexeddbPersistence(docId, doc)
+await persistence.whenSynced  // ミリ秒で完了
+
+// 2. バックグラウンドで DB と同期（マージ）
+const { data } = await supabase.from('documents').select('yjs_state')...
+if (data?.yjs_state) {
+  Y.applyUpdate(doc, new Uint8Array(data.yjs_state))  // CRDT マージ
+}
+
+// 3. Realtime で他クライアントの更新を受信（従来通り即時）
+channel.on('broadcast', { event: 'update' }, ...)
+```
+
+### ユーザーから見た変化
+
+| 操作 | 現在 | 改善後 |
+|------|------|--------|
+| ドキュメントを開く | IndexedDB → 即座 | 同じ（IndexedDB → 即座） |
+| 他ユーザーの編集を受信 | Realtime → 即座 | 同じ |
+| オフラインで編集 | IndexedDB に保存 | 同じ |
+| 新規デバイスで開く | P2P sync-request | DB から取得（改善） |
+| 全員が閉じた後に再開 | データ消失の可能性 | DB から復元（改善） |
+
+**結論**: ユーザー体験は劣化せず、むしろ改善される。
+
+---
+
 ## 参考
 
 - [Y.js Docs: Document Updates](https://docs.yjs.dev/api/document-updates)
