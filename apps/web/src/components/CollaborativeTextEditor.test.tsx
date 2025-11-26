@@ -294,3 +294,253 @@ describe('CollaborativeTextEditor - Advanced Behavior', () => {
     confirmSpy.mockRestore()
   })
 })
+
+describe('CollaborativeTextEditor - Synchronization Edge Cases', () => {
+  let __testUtils: any
+  let mockOnUpdate: ReturnType<typeof vi.fn>
+
+  beforeAll(async () => {
+    const mod = await import('../lib/yjs-supabase-provider')
+    __testUtils = (mod as any).__testUtils
+  })
+
+  beforeEach(() => {
+    __testUtils.clearDeferredMap()
+    mockOnUpdate = vi.fn()
+  })
+
+  afterEach(() => {
+    cleanup()
+  })
+
+  it('should disconnect provider when document becomes null', async () => {
+    const mockDocument: Document = {
+      id: 'doc-disconnect',
+      userId: 'user-1',
+      title: 'Disconnect Test',
+      content: 'Content',
+      tags: [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }
+
+    const { rerender } = render(
+      <CollaborativeTextEditor document={mockDocument} onDocumentUpdate={mockOnUpdate} />
+    )
+
+    __testUtils.resolveWhenSynced('doc-disconnect')
+    await screen.findByLabelText('リアルタイム: 同期済み')
+
+    const mod = await import('../lib/yjs-supabase-provider')
+    const inst: any = (mod as any).__getLastInstance()
+
+    // ドキュメントを null に変更
+    rerender(
+      <CollaborativeTextEditor document={null} onDocumentUpdate={mockOnUpdate} />
+    )
+
+    // disconnect が呼ばれることを確認
+    expect(inst.disconnect).toHaveBeenCalled()
+  })
+
+  it('should handle rapid document switching without data loss', async () => {
+    const docs: Document[] = Array.from({ length: 5 }, (_, i) => ({
+      id: `rapid-doc-${i}`,
+      userId: 'user-1',
+      title: `Doc ${i}`,
+      content: `Content ${i}`,
+      tags: [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }))
+
+    const { rerender } = render(
+      <CollaborativeTextEditor document={docs[0]} onDocumentUpdate={mockOnUpdate} />
+    )
+
+    // 高速でドキュメントを切り替え
+    for (let i = 1; i < docs.length; i++) {
+      rerender(
+        <CollaborativeTextEditor document={docs[i]} onDocumentUpdate={mockOnUpdate} />
+      )
+    }
+
+    // 最終的なドキュメントが表示されていることを確認
+    expect(screen.getByText('Doc 4')).toBeTruthy()
+  })
+
+  it('should not save when content equals document.content after seed', async () => {
+    const mockDocument: Document = {
+      id: 'no-duplicate-save',
+      userId: 'user-1',
+      title: 'No Duplicate',
+      content: 'Original content',
+      tags: [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }
+
+    render(
+      <CollaborativeTextEditor document={mockDocument} onDocumentUpdate={mockOnUpdate} />
+    )
+
+    // IndexedDB 同期完了（初期シード実行）
+    __testUtils.resolveWhenSynced('no-duplicate-save')
+    await Promise.resolve()
+
+    // 500ms待ってもonUpdateが呼ばれないことを確認
+    await new Promise(resolve => setTimeout(resolve, 600))
+
+    // 初期シードのみで変更がない場合は保存されない
+    expect(mockOnUpdate).not.toHaveBeenCalled()
+  })
+
+  it('should handle tag updates without affecting content', async () => {
+    const mockDocument: Document = {
+      id: 'tag-update-test',
+      userId: 'user-1',
+      title: 'Tag Update Test',
+      content: 'Initial content',
+      tags: ['initial-tag'],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }
+
+    const { rerender } = render(
+      <CollaborativeTextEditor document={mockDocument} onDocumentUpdate={mockOnUpdate} />
+    )
+
+    __testUtils.resolveWhenSynced('tag-update-test')
+    await screen.findByLabelText('リアルタイム: 同期済み')
+
+    // 初期タグが表示されている
+    expect(screen.getByText('initial-tag')).toBeTruthy()
+
+    // ドキュメントのタグが外部から更新される（同じdocumentId）
+    rerender(
+      <CollaborativeTextEditor
+        document={{ ...mockDocument, tags: ['new-tag', 'another-tag'] }}
+        onDocumentUpdate={mockOnUpdate}
+      />
+    )
+
+    // 新しいタグが反映されている
+    expect(screen.getByText('new-tag')).toBeTruthy()
+    expect(screen.getByText('another-tag')).toBeTruthy()
+    // 古いタグは消えている
+    expect(screen.queryByText('initial-tag')).toBeNull()
+  })
+
+  it('should preserve cursor position during remote updates', async () => {
+    const mockDocument: Document = {
+      id: 'cursor-test',
+      userId: 'user-1',
+      title: 'Cursor Test',
+      content: 'Hello World',
+      tags: [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }
+
+    const { container } = render(
+      <CollaborativeTextEditor document={mockDocument} onDocumentUpdate={mockOnUpdate} />
+    )
+
+    __testUtils.resolveWhenSynced('cursor-test')
+    await screen.findByLabelText('リアルタイム: 同期済み')
+
+    const textarea = container.querySelector('textarea') as HTMLTextAreaElement
+    expect(textarea).toBeTruthy()
+
+    // テキストエリアにフォーカスしてカーソル位置を設定
+    textarea.focus()
+    textarea.setSelectionRange(5, 5) // "Hello|" の位置
+
+    // テキストを変更（カーソル位置を保持するか確認）
+    fireEvent.change(textarea, { target: { value: 'Hello Beautiful World' } })
+
+    // タイマーで位置が復元されることを確認
+    await new Promise(resolve => setTimeout(resolve, 10))
+    // 新しいカーソル位置は挿入分だけ進む
+    expect(textarea.selectionStart).toBeGreaterThanOrEqual(5)
+  })
+})
+
+describe('CollaborativeTextEditor - Error Handling', () => {
+  let __testUtils: any
+  let mockOnUpdate: ReturnType<typeof vi.fn>
+
+  beforeAll(async () => {
+    const mod = await import('../lib/yjs-supabase-provider')
+    __testUtils = (mod as any).__testUtils
+  })
+
+  beforeEach(() => {
+    __testUtils.clearDeferredMap()
+    mockOnUpdate = vi.fn()
+  })
+
+  afterEach(() => {
+    cleanup()
+  })
+
+  it('should handle delete cancellation gracefully', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const onDelete = vi.fn()
+
+    const mockDocument: Document = {
+      id: 'cancel-delete',
+      userId: 'user-1',
+      title: 'Cancel Delete Test',
+      content: 'Content',
+      tags: [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }
+
+    render(
+      <CollaborativeTextEditor
+        document={mockDocument}
+        onDocumentUpdate={mockOnUpdate}
+        onDocumentDelete={onDelete}
+      />
+    )
+
+    __testUtils.resolveWhenSynced('cancel-delete')
+    await screen.findByLabelText('リアルタイム: 同期済み')
+
+    const deleteButton = screen.getByLabelText('delete-document')
+    fireEvent.click(deleteButton)
+
+    // キャンセルしたので削除されない
+    expect(onDelete).not.toHaveBeenCalled()
+
+    // ドキュメントはまだ表示されている
+    expect(screen.getByText('Cancel Delete Test')).toBeTruthy()
+
+    confirmSpy.mockRestore()
+  })
+
+  it('should handle empty content document', async () => {
+    const mockDocument: Document = {
+      id: 'empty-content',
+      userId: 'user-1',
+      title: '',
+      content: '',
+      tags: [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }
+
+    const { container } = render(
+      <CollaborativeTextEditor document={mockDocument} onDocumentUpdate={mockOnUpdate} />
+    )
+
+    __testUtils.resolveWhenSynced('empty-content')
+    await Promise.resolve()
+
+    const textarea = container.querySelector('textarea') as HTMLTextAreaElement
+    expect(textarea).toBeTruthy()
+    expect(textarea.value).toBe('')
+  })
+})

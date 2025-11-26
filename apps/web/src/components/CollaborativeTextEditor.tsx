@@ -5,6 +5,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import * as Y from 'yjs'
 import { SupabaseProvider } from '../lib/yjs-supabase-provider'
+import { calculateDelta } from '../lib/text-diff'
 import { useAuth } from '../contexts/AuthContext'
 import { getDocumentTitle } from '../utils/markdown'
 import { Badge } from './ui/badge'
@@ -360,39 +361,4 @@ export default function CollaborativeTextEditor({
       </Tabs>
     </div>
   )
-}
-
-// 差分計算ヘルパー関数
-function calculateDelta(
-  oldText: string,
-  newText: string,
-): { start: number; delete: number; insert: string } {
-  // 簡易的な差分計算
-  // カーソル位置を基準に変更を検出
-
-  let start = 0
-  let deleteCount = 0
-  let insertText = ''
-
-  // 前方から一致する部分を見つける
-  while (start < oldText.length && start < newText.length && oldText[start] === newText[start]) {
-    start++
-  }
-
-  // 後方から一致する部分を見つける
-  let oldEnd = oldText.length
-  let newEnd = newText.length
-  while (
-    oldEnd > start &&
-    newEnd > start &&
-    oldText[oldEnd - 1] === newText[newEnd - 1]
-  ) {
-    oldEnd--
-    newEnd--
-  }
-
-  deleteCount = oldEnd - start
-  insertText = newText.substring(start, newEnd)
-
-  return { start, delete: deleteCount, insert: insertText }
 }
