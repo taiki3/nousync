@@ -115,11 +115,20 @@ export class SupabaseProvider {
         if (stateArray.length > 0) {
           // CRDT マージ：ローカルと DB の状態を統合
           Y.applyUpdate(this.doc, stateArray, 'db-sync')
+          // DB から状態を読み込めた場合のみ lastSavedStateVector を設定
+          this.lastSavedStateVector = Y.encodeStateVector(this.doc)
         }
       }
 
       this.dbSynced = true
-      this.lastSavedStateVector = Y.encodeStateVector(this.doc)
+
+      // DB に状態がない場合（新規 or 未保存）、ローカル状態があれば即座に保存
+      if (!this.lastSavedStateVector) {
+        const localState = Y.encodeStateAsUpdate(this.doc)
+        if (localState.length > 2) {  // 空でない場合のみ
+          this.saveToDatabase()
+        }
+      }
     } catch (err) {
       console.error('Error syncing with database:', err)
     }
