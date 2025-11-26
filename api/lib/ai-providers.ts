@@ -264,11 +264,11 @@ export class AIProvider {
         parts: [{ text: m.content }]
       }))
 
-      const response = await fetch(`${GATEWAY_URL}/google-ai/models/${modelId}:generateContent`, {
+      const response = await fetch(`${GATEWAY_URL}/google-ai-studio/v1/models/${modelId}:generateContent`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
+          'x-goog-api-key': apiKey,
           'cf-aig-authorization': `Bearer ${GATEWAY_TOKEN}`
         },
         body: JSON.stringify({
@@ -330,11 +330,11 @@ export class AIProvider {
         parts: [{ text: m.content }]
       }))
 
-      const response = await fetch(`${GATEWAY_URL}/google-ai/models/${modelId}:streamGenerateContent`, {
+      const response = await fetch(`${GATEWAY_URL}/google-ai-studio/v1/models/${modelId}:streamGenerateContent`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
+          'x-goog-api-key': apiKey,
           'cf-aig-authorization': `Bearer ${GATEWAY_TOKEN}`
         },
         body: JSON.stringify({
@@ -451,7 +451,7 @@ export class AIProvider {
 
       // Use Cloudflare Gateway if configured
       const url = USE_GATEWAY
-        ? `${GATEWAY_URL}/google-ai/models`
+        ? `${GATEWAY_URL}/google-ai-studio/v1/models`
         : `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`
 
       const headers: any = {
@@ -459,7 +459,7 @@ export class AIProvider {
       }
 
       if (USE_GATEWAY) {
-        headers['Authorization'] = `Bearer ${apiKey}`
+        headers['x-goog-api-key'] = apiKey
         headers['cf-aig-authorization'] = `Bearer ${GATEWAY_TOKEN}`
       }
 
