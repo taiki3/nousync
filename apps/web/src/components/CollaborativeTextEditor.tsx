@@ -330,8 +330,8 @@ export default function CollaborativeTextEditor({
       </div>
 
       {/* エディタ */}
-      <Tabs defaultValue="edit" className="flex-1 flex flex-col">
-        <TabsList className="mx-4 mt-4">
+      <Tabs defaultValue="edit" className="flex-1 flex flex-col min-h-0">
+        <TabsList className="mx-4 mt-4 flex-shrink-0">
           <TabsTrigger value="edit" className="gap-2">
             <Edit3 className="h-4 w-4" />
             編集
@@ -342,7 +342,7 @@ export default function CollaborativeTextEditor({
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="edit" className="flex-1 m-0">
+        <TabsContent value="edit" className="flex-1 m-0 min-h-0">
           <Textarea
             ref={textareaRef}
             value={content}
@@ -352,7 +352,7 @@ export default function CollaborativeTextEditor({
           />
         </TabsContent>
 
-        <TabsContent value="preview" className="flex-1 m-0 p-4 overflow-auto">
+        <TabsContent value="preview" className="flex-1 m-0 p-4 overflow-auto min-h-0">
           <div className="prose prose-sm dark:prose-invert max-w-none">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
           </div>
