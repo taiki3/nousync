@@ -3,109 +3,290 @@ import * as Y from 'yjs'
 import { IndexeddbPersistence } from 'y-indexeddb'
 
 /**
+ * バッチ処理付きブロードキャスター
+ * 細かい更新をまとめて送信することで通信量を削減
+ */
+class BatchedBroadcaster {
+  private pendingUpdates: Uint8Array[] = []
+  private flushTimer: ReturnType<typeof setTimeout> | null = null
+  private readonly BATCH_INTERVAL = 50 // ms
+  private channel: RealtimeChannel | null = null
+
+  setChannel(channel: RealtimeChannel | null) {
+    this.channel = channel
+  }
+
+  queue(update: Uint8Array) {
+    this.pendingUpdates.push(update)
+
+    if (!this.flushTimer) {
+      this.flushTimer = setTimeout(() => this.flush(), this.BATCH_INTERVAL)
+    }
+  }
+
+  flush() {
+    if (this.pendingUpdates.length === 0 || !this.channel) {
+      this.flushTimer = null
+      return
+    }
+
+    // 複数の更新をマージ
+    const merged = Y.mergeUpdates(this.pendingUpdates)
+    this.channel.send({
+      type: 'broadcast',
+      event: 'update',
+      payload: { update: Array.from(merged) },
+    })
+
+    this.pendingUpdates = []
+    this.flushTimer = null
+  }
+
+  destroy() {
+    if (this.flushTimer) {
+      clearTimeout(this.flushTimer)
+      this.flushTimer = null
+    }
+    // flush remaining updates before destroy
+    this.flush()
+    this.channel = null
+  }
+}
+
+/**
  * Supabase Realtime を使った Y.js プロバイダー
- * WebSocket の代わりに Supabase の Realtime チャンネルを使用
+ * - IndexedDB でローカル優先表示（即座）
+ * - Supabase DB で永続化（バックグラウンド同期）
+ * - State Vector による差分同期
+ * - バッチ処理による通信量削減
  */
 export class SupabaseProvider {
   public doc: Y.Doc
   public awareness: any = null  // 将来の拡張用（現在は未使用）
-  public persistence: IndexeddbPersistence | null = null  // IndexedDB永続化
+  public persistence: IndexeddbPersistence | null = null
   private supabase: SupabaseClient
   private channel: RealtimeChannel | null = null
   private documentId: string
   private realtimeSynced = false
   private persistenceSynced = false
-  private updateListenerAttached = false  // リスナー重複防止フラグ
+  private dbSynced = false
+  private updateListenerAttached = false
+  private broadcaster: BatchedBroadcaster
+  private saveTimer: ReturnType<typeof setTimeout> | null = null
+  private readonly SAVE_DEBOUNCE = 2000 // 2秒後にDBへ保存
+  private lastSavedStateVector: Uint8Array | null = null
 
   constructor(documentId: string, doc: Y.Doc, supabase: SupabaseClient) {
     this.documentId = documentId
     this.doc = doc
     this.supabase = supabase
+    this.broadcaster = new BatchedBroadcaster()
 
-    // IndexedDB で永続化（オフライン対応）
+    // 1. IndexedDB で永続化（オフライン対応・即座に表示）
     this.persistence = new IndexeddbPersistence(documentId, doc)
-    // 同期完了をフラグ化
     this.persistence.whenSynced.then(() => {
       this.persistenceSynced = true
+      // 2. バックグラウンドで DB と同期
+      this.syncWithDatabase()
     })
 
     this.connect()
   }
 
+  /**
+   * DB から Y.js 状態を読み込み、ローカルとマージ
+   */
+  private async syncWithDatabase() {
+    try {
+      const { data, error } = await this.supabase
+        .from('documents')
+        .select('yjs_state')
+        .eq('id', this.documentId)
+        .single()
+
+      if (error) {
+        console.warn('Failed to load yjs_state from DB:', error)
+        return
+      }
+
+      // DB の状態を一時ドキュメントに読み込んで State Vector を取得
+      // これにより lastSavedStateVector は DB に実際に保存されている状態のみを表す
+      let dbStateVector: Uint8Array | null = null
+
+      if (data?.yjs_state) {
+        const stateArray = this.base64ToUint8Array(data.yjs_state)
+        if (stateArray.length > 0) {
+          // DB の State Vector を取得（マージ前に）
+          const tempDoc = new Y.Doc()
+          Y.applyUpdate(tempDoc, stateArray)
+          dbStateVector = Y.encodeStateVector(tempDoc)
+          tempDoc.destroy()
+
+          // CRDT マージ：ローカルと DB の状態を統合
+          Y.applyUpdate(this.doc, stateArray, 'db-sync')
+        }
+      }
+
+      this.dbSynced = true
+
+      // DB に保存されている状態の State Vector を記録
+      // （ローカルのオフライン編集は含まない）
+      if (dbStateVector) {
+        this.lastSavedStateVector = dbStateVector
+      }
+
+      // ローカルに DB より新しい変更があれば保存をトリガー
+      const localState = Y.encodeStateAsUpdate(this.doc)
+      if (localState.length > 2) {
+        if (!dbStateVector) {
+          // DB に状態がない場合は即座に保存
+          this.saveToDatabase()
+        } else {
+          // DB に状態がある場合、差分があれば保存
+          const diff = Y.encodeStateAsUpdate(this.doc, dbStateVector)
+          if (diff.length > 2) {
+            this.saveToDatabase()
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error syncing with database:', err)
+    }
+  }
+
+  /**
+   * DB に Y.js 状態を保存（デバウンス付き）
+   */
+  private scheduleSaveToDatabase() {
+    if (this.saveTimer) {
+      clearTimeout(this.saveTimer)
+    }
+
+    this.saveTimer = setTimeout(() => {
+      this.saveToDatabase()
+    }, this.SAVE_DEBOUNCE)
+  }
+
+  /**
+   * DB に Y.js 状態を保存
+   */
+  private async saveToDatabase() {
+    try {
+      // 差分があるかチェック（State Vector で比較）
+      const currentStateVector = Y.encodeStateVector(this.doc)
+      if (this.lastSavedStateVector) {
+        const diff = Y.diffUpdate(
+          Y.encodeStateAsUpdate(this.doc),
+          this.lastSavedStateVector
+        )
+        // 差分がなければスキップ
+        if (diff.length <= 2) {
+          return
+        }
+      }
+
+      const state = Y.encodeStateAsUpdate(this.doc)
+      const base64State = this.uint8ArrayToBase64(state)
+
+      const { error } = await this.supabase
+        .from('documents')
+        .update({ yjs_state: base64State })
+        .eq('id', this.documentId)
+
+      if (error) {
+        console.error('Failed to save yjs_state to DB:', error)
+      } else {
+        this.lastSavedStateVector = currentStateVector
+      }
+    } catch (err) {
+      console.error('Error saving to database:', err)
+    }
+  }
+
   private connect() {
-    // Supabase Realtime チャンネルに接続
     this.channel = this.supabase.channel(`document:${this.documentId}`, {
       config: {
-        // 自分のブロードキャストは受信しない
         broadcast: { self: false },
       },
     })
+
+    this.broadcaster.setChannel(this.channel)
 
     // 他のクライアントからの更新を受信
     this.channel.on('broadcast', { event: 'update' }, ({ payload }) => {
       if (payload.update) {
         const update = new Uint8Array(payload.update)
-        // originにthisを渡して、再ブロードキャストを防ぐ
         Y.applyUpdate(this.doc, update, this)
       }
     })
 
-    // 同期リクエストを受信（新規接続時）
+    // State Vector を使った差分同期リクエストを受信
     this.channel.on('broadcast', { event: 'sync-request' }, ({ payload }) => {
-      // 現在の状態を送信
-      const state = Y.encodeStateAsUpdate(this.doc)
-      this.channel?.send({
-        type: 'broadcast',
-        event: 'sync-response',
-        payload: { update: Array.from(state), clientId: payload.clientId },
-      })
+      if (payload.stateVector) {
+        // 相手の State Vector との差分のみを計算して送信
+        const remoteStateVector = new Uint8Array(payload.stateVector)
+        const diff = Y.encodeStateAsUpdate(this.doc, remoteStateVector)
+        this.channel?.send({
+          type: 'broadcast',
+          event: 'sync-response',
+          payload: {
+            update: Array.from(diff),
+            clientId: payload.clientId,
+            stateVector: Array.from(Y.encodeStateVector(this.doc)),
+          },
+        })
+      } else {
+        // 後方互換: State Vector がない場合は全状態を送信
+        const state = Y.encodeStateAsUpdate(this.doc)
+        this.channel?.send({
+          type: 'broadcast',
+          event: 'sync-response',
+          payload: { update: Array.from(state), clientId: payload.clientId },
+        })
+      }
     })
 
     // 同期レスポンスを受信
     this.channel.on('broadcast', { event: 'sync-response' }, ({ payload }) => {
       if (payload.update) {
         const update = new Uint8Array(payload.update)
-        // originにthisを渡して、再ブロードキャストを防ぐ
         Y.applyUpdate(this.doc, update, this)
         this.realtimeSynced = true
       }
     })
 
-    // チャンネルに接続
     this.channel.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
-        // 接続成功、同期リクエストを送信
-        const clientId = Math.random().toString(36).substring(7)
-        // 単独接続でも"接続済み"として扱う（UIの分かりやすさを優先）
         this.realtimeSynced = true
+
+        // State Vector を含めた同期リクエストを送信
+        const clientId = Math.random().toString(36).substring(7)
+        const stateVector = Y.encodeStateVector(this.doc)
         await this.channel?.send({
           type: 'broadcast',
           event: 'sync-request',
-          payload: { clientId },
+          payload: {
+            clientId,
+            stateVector: Array.from(stateVector),
+          },
         })
 
-        // オフライン編集対応: 既存のローカル状態をブロードキャスト
-        // IndexedDBから復元された編集や、接続前の変更を他のピアに送信
-        const localState = Y.encodeStateAsUpdate(this.doc)
-        if (localState.length > 0) {
+        // ローカル状態の差分を送信（State Vector ベース）
+        // 他のクライアントがいれば sync-response で受け取った後にマージされる
+        const localUpdate = Y.encodeStateAsUpdate(this.doc)
+        if (localUpdate.length > 2) {  // 空でない場合のみ
           await this.channel?.send({
             type: 'broadcast',
             event: 'update',
-            payload: { update: Array.from(localState) },
+            payload: { update: Array.from(localUpdate) },
           })
         }
 
-        // ソロクライアント対策: SUBSCRIBED時点でリアルタイム接続は成功
-        // 他のピアから sync-response が来ればそれで上書きされる
-        this.realtimeSynced = true
-
-        // ローカル変更を監視してブロードキャスト（重複防止）
         if (!this.updateListenerAttached) {
           this.doc.on('update', this.handleUpdate)
           this.updateListenerAttached = true
         }
       } else if (status === 'CLOSED' || status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
-        // 接続が切れたらフラグをリセット
         this.realtimeSynced = false
       }
     })
@@ -113,26 +294,38 @@ export class SupabaseProvider {
 
   private handleUpdate = (update: Uint8Array, origin: any) => {
     // 自分の変更のみブロードキャスト（他から受信したものは除外）
-    if (origin !== this) {
-      this.channel?.send({
-        type: 'broadcast',
-        event: 'update',
-        payload: { update: Array.from(update) },
-      })
+    if (origin !== this && origin !== 'db-sync') {
+      // バッチ処理で送信
+      this.broadcaster.queue(update)
+      // DB同期が完了している場合のみ保存をスケジュール
+      // 同期前に保存すると不完全な状態で上書きしてしまう
+      if (this.dbSynced) {
+        this.scheduleSaveToDatabase()
+      }
     }
   }
 
   public disconnect() {
+    // 保存タイマーがあればキャンセル
+    if (this.saveTimer) {
+      clearTimeout(this.saveTimer)
+      this.saveTimer = null
+    }
+    // DB同期が完了している場合のみ保存を実行
+    // 同期前に保存すると不完全な状態で上書きしてデータロスを引き起こす
+    if (this.dbSynced) {
+      this.saveToDatabase()
+    }
+
+    // ブロードキャスターを破棄（残りの更新をflush）
+    this.broadcaster.destroy()
+
     if (this.channel) {
       this.doc.off('update', this.handleUpdate)
       this.updateListenerAttached = false
       this.supabase.removeChannel(this.channel)
       this.channel = null
     }
-
-    // Note: IndexedDB persistence is NOT destroyed here to preserve offline edits.
-    // The persistence layer should remain intact so the next session can resync.
-    // Only call persistence.destroy() when the document is permanently deleted.
   }
 
   public isSynced(): boolean {
@@ -147,7 +340,10 @@ export class SupabaseProvider {
     return this.persistenceSynced
   }
 
-  // 永続データ削除（ドキュメント削除時に使用）
+  public isDatabaseSynced(): boolean {
+    return this.dbSynced
+  }
+
   public async destroyPersistence() {
     const anyIdx = IndexeddbPersistence as unknown as {
       clearData?: (name: string) => Promise<void> | void
@@ -156,17 +352,37 @@ export class SupabaseProvider {
       await anyIdx.clearData(this.documentId)
       return
     }
-    // フォールバック: 一時Docで初期化して破棄
     try {
       const tempDoc = new Y.Doc()
       const temp = new IndexeddbPersistence(this.documentId, tempDoc)
-      // @ts-ignore - 一部実装ではdestroyでデータも削除される
       if (typeof (temp as any).clearData === 'function') {
         await (temp as any).clearData()
       }
       await temp.destroy()
     } catch (error) {
       console.warn('Failed to destroy IndexedDB persistence:', error)
+    }
+  }
+
+  // ユーティリティ: Uint8Array <-> Base64 変換
+  private uint8ArrayToBase64(bytes: Uint8Array): string {
+    let binary = ''
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i])
+    }
+    return btoa(binary)
+  }
+
+  private base64ToUint8Array(base64: string): Uint8Array {
+    try {
+      const binary = atob(base64)
+      const bytes = new Uint8Array(binary.length)
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i)
+      }
+      return bytes
+    } catch {
+      return new Uint8Array(0)
     }
   }
 }
@@ -183,7 +399,6 @@ export async function destroyDocumentPersistence(documentId: string) {
   try {
     const tempDoc = new Y.Doc()
     const temp = new IndexeddbPersistence(documentId, tempDoc)
-    // @ts-ignore
     if (typeof (temp as any).clearData === 'function') {
       await (temp as any).clearData()
     }
