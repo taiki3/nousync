@@ -370,11 +370,14 @@
     if (!window.supabase) {
       throw new Error('Supabase SDKが読み込まれていません')
     }
+    // Check if placeholders were not replaced (split to avoid replacement during ZIP build)
+    const urlPlaceholder = '__SUPABASE' + '_URL__'
+    const keyPlaceholder = '__SUPABASE' + '_ANON_KEY__'
     if (
       !SUPABASE_URL ||
       !SUPABASE_ANON_KEY ||
-      SUPABASE_URL.includes('__SUPABASE_URL__') ||
-      SUPABASE_ANON_KEY.includes('__SUPABASE_ANON_KEY__')
+      SUPABASE_URL.includes(urlPlaceholder) ||
+      SUPABASE_ANON_KEY.includes(keyPlaceholder)
     ) {
       throw new Error('Supabaseの設定が不足しています。WebClipperModalからZIPを再ダウンロードしてください。')
     }
