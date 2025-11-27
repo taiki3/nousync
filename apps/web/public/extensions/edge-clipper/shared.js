@@ -23,7 +23,9 @@
   }
 
   function resolveDefaultApiBase() {
-    if (PLACEHOLDER_API_BASE && !PLACEHOLDER_API_BASE.includes('__NOUSYNC_API_BASE__')) {
+    // Split placeholder to avoid replacement during ZIP build
+    const apiPlaceholder = '__NOUSYNC_API' + '_BASE__'
+    if (PLACEHOLDER_API_BASE && !PLACEHOLDER_API_BASE.includes(apiPlaceholder)) {
       return normalizeBaseUrl(PLACEHOLDER_API_BASE)
     }
     return FALLBACK_API_BASE
