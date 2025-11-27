@@ -8,7 +8,6 @@ import { ResizableLayout } from './components/ResizableLayout'
 import { SettingsView } from './components/SettingsView'
 import { useAuth } from './contexts/AuthContext'
 import { SettingsProvider } from './contexts/SettingsContext'
-import { useLocalStorage } from './hooks'
 import { ApiError, documentsApi } from './services/api'
 import { destroyDocumentPersistence } from './lib/yjs-supabase-provider'
 
@@ -17,38 +16,10 @@ function App() {
   const [documents, setDocuments] = useState<Document[]>([])
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null)
   const [loading, setLoading] = useState(true)
-  const [showTokenModalOnAuth, setShowTokenModalOnAuth] = useLocalStorage(
-    'nousync-show-token-modal',
-    false,
-  )
   const [newDocumentIds, setNewDocumentIds] = useState<Set<string>>(new Set())
   const [showSettings, setShowSettings] = useState(false)
   const lastFetchTimeRef = useRef<number>(Date.now())
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
-
-  // Check URL parameters on mount
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-
-    // Check URL parameter first
-    if (params.get('showToken') === 'true') {
-      setShowTokenModalOnAuth(true)
-      // Save to localStorage for after auth redirect
-      localStorage.setItem('nousync-show-token-modal', 'true')
-      // Remove the parameter from URL without reloading
-      const url = new URL(window.location.href)
-      url.searchParams.delete('showToken')
-      window.history.replaceState({}, '', url)
-    } else {
-      // Check localStorage (for after auth redirect)
-      const savedShowToken = localStorage.getItem('nousync-show-token-modal')
-      if (savedShowToken === 'true') {
-        setShowTokenModalOnAuth(true)
-        // Clear the flag
-        localStorage.removeItem('nousync-show-token-modal')
-      }
-    }
-  }, [setShowTokenModalOnAuth])
 
   const fetchDocuments = useCallback(
     async (checkForNew = false) => {
@@ -250,7 +221,6 @@ function App() {
               selectedDocument={selectedDocument}
               onDocumentSelect={handleDocumentSelect}
               onDocumentCreate={handleDocumentCreate}
-              showTokenModalOnAuth={showTokenModalOnAuth}
               newDocumentIds={newDocumentIds}
               onSettingsClick={() => setShowSettings(true)}
             />

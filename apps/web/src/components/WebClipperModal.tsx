@@ -1,6 +1,6 @@
 import JSZip from 'jszip'
 import { Download, Globe } from 'lucide-react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Button } from './ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog'
 
@@ -9,53 +9,85 @@ interface WebClipperModalProps {
   onClose: () => void
 }
 
+const extensionFiles = [
+  { path: 'manifest.json', binary: false, required: true },
+  { path: 'popup.html', binary: false, required: true },
+  { path: 'popup.js', binary: false, required: true },
+  { path: 'content.js', binary: false, required: true },
+  { path: 'background.js', binary: false, required: true },
+  { path: 'options.html', binary: false, required: true },
+  { path: 'options.js', binary: false, required: true },
+  { path: 'shared.js', binary: false, injectEnv: true, required: true },
+  { path: 'jszip.min.js', binary: false, required: true },
+  { path: 'supabase.js', binary: false, required: true },
+  { path: 'README.md', binary: false, required: false },
+  { path: 'icons/icon-16.png', binary: true, required: true },
+  { path: 'icons/icon-32.png', binary: true, required: false },
+  { path: 'icons/icon-128.png', binary: true, required: true },
+]
+
 export function WebClipperModal({ open, onClose }: WebClipperModalProps) {
   const [isDownloading, setIsDownloading] = useState(false)
+
+  const baseUrl = useMemo(() => {
+    const root = import.meta.env.BASE_URL || '/'
+    return `${root}extensions/edge-clipper/`
+  }, [])
+
+  const resolvedApiBase = useMemo(() => {
+    const apiBase = import.meta.env.VITE_API_URL || '/api'
+    try {
+      const url = new URL(apiBase, window.location.origin)
+      return url.href.replace(/\/$/, '')
+    } catch (_error) {
+      return `${window.location.origin}${apiBase}`.replace(/\/$/, '')
+    }
+  }, [])
+
+  const supabaseConfig = useMemo(() => {
+    return {
+      url: import.meta.env.VITE_SUPABASE_URL as string,
+      anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+    }
+  }, [])
 
   const handleDownload = async () => {
     setIsDownloading(true)
 
     try {
-      // Create a new zip file
       const zip = new JSZip()
 
-      // Fetch all extension files
-      const files = [
-        'manifest.json',
-        'popup.html',
-        'popup.js',
-        'content.js',
-        'background.js',
-        'options.html',
-        'options.js',
-        'README.md',
-      ]
+      const missingFiles: string[] = []
 
-      // Get base URL from Vite configuration
-      const baseUrl = import.meta.env.BASE_URL || '/'
+      for (const file of extensionFiles) {
+        const response = await fetch(`${baseUrl}${file.path}`)
+        if (!response.ok) {
+          if (file.required) {
+            missingFiles.push(file.path)
+          }
+          continue
+        }
 
-      // Fetch and add files to zip
-      for (const file of files) {
-        const url = `${baseUrl}extensions/edge-clipper/${file}`
-        const response = await fetch(url)
-        if (response.ok) {
-          const content = await response.text()
-          zip.file(file, content)
+        if (file.binary) {
+          const buffer = await response.arrayBuffer()
+          zip.file(file.path, buffer)
+        } else {
+          let content = await response.text()
+          if (file.injectEnv) {
+            content = content
+              .replace(/__NOUSYNC_API_BASE__/g, resolvedApiBase)
+              .replace(/__SUPABASE_URL__/g, supabaseConfig.url || '')
+              .replace(/__SUPABASE_ANON_KEY__/g, supabaseConfig.anonKey || '')
+          }
+          zip.file(file.path, content)
         }
       }
 
-      // Add icon file in icons folder
-      const iconUrl = `${baseUrl}extensions/edge-clipper/icons/icon.svg`
-      const iconResponse = await fetch(iconUrl)
-      if (iconResponse.ok) {
-        const iconContent = await iconResponse.text()
-        zip.file('icons/icon.svg', iconContent)
+      if (missingFiles.length > 0) {
+        throw new Error(`必須ファイルが見つかりません: ${missingFiles.join(', ')}`)
       }
 
-      // Generate the zip file
       const zipBlob = await zip.generateAsync({ type: 'blob' })
-
-      // Create download link
       const url = window.URL.createObjectURL(zipBlob)
       const a = document.createElement('a')
       a.href = url
@@ -64,15 +96,16 @@ export function WebClipperModal({ open, onClose }: WebClipperModalProps) {
       a.click()
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
-    } catch (_error) {
-      alert('拡張機能のダウンロードに失敗しました。')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '拡張機能のダウンロードに失敗しました。'
+      alert(message)
     } finally {
       setIsDownloading(false)
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -80,24 +113,30 @@ export function WebClipperModal({ open, onClose }: WebClipperModalProps) {
             Nousync Web Clipper
           </DialogTitle>
           <DialogDescription>
-            ブラウザ拡張機能を使用して、Webページの記事をNousyncに保存できます。
+            Docling APIをブラウザから直接呼び出し、Supabase認証でNousyncのDocumentsに保存するEdge拡張機能です。
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
           <div>
-            <h3 className="font-medium mb-2">主な機能</h3>
+            <h3 className="font-medium mb-2">準備するもの</h3>
             <ul className="text-sm text-muted-foreground space-y-1">
-              <li>• Webページの本文を自動抽出</li>
-              <li>• Markdown形式で保存</li>
-              <li>• ヘッダー、フッター、広告を自動除去</li>
-              <li>• ワンクリックでNousyncに保存</li>
+              <li>• GitHubログインが有効なSupabaseプロジェクト（Anon Key/URLはZIPに書き込み済み）</li>
+              <li>• SupabaseのRedirect URLsに <code className="px-1 py-0.5 bg-muted rounded">https://*.chromiumapp.org/*</code> を追加</li>
+              <li>• Docling APIへ到達できる社内ネットワーク</li>
+              <li>• Microsoft Edge (Chromium)</li>
             </ul>
           </div>
 
           <div>
-            <h3 className="font-medium mb-2">対応ブラウザ</h3>
-            <p className="text-sm text-muted-foreground">Microsoft Edge (Chromium版)</p>
+            <h3 className="font-medium mb-2">インストール & ログイン手順</h3>
+            <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
+              <li>下のボタンからZIPをダウンロードして解凍</li>
+              <li>Edgeで <code className="px-1 py-0.5 bg-muted rounded">edge://extensions/</code> を開き、「展開して読み込み」を実行</li>
+              <li>拡張の設定ページ（オプション）でDocling/NousyncのURLやタグを入力</li>
+              <li>同ページの「ログイン」ボタンからSupabase (GitHub) 認証を完了</li>
+              <li>ポップアップで「現在のタブを保存」を押してNousyncへ送信</li>
+            </ol>
           </div>
 
           <div className="pt-2">
@@ -107,21 +146,12 @@ export function WebClipperModal({ open, onClose }: WebClipperModalProps) {
             </Button>
           </div>
 
-          <div className="border-t pt-4">
-            <h3 className="font-medium mb-2">インストール手順</h3>
-            <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
-              <li>上のボタンからZIPファイルをダウンロード</li>
-              <li>ZIPファイルを任意の場所に解凍</li>
-              <li>Microsoft Edgeで拡張機能ページを開く</li>
-              <li>開発者モードをオンにする</li>
-              <li>「展開して読み込み」から解凍したフォルダを選択</li>
-            </ol>
-          </div>
-
-          <div className="text-center text-sm text-muted-foreground">
-            <p className="mb-2">拡張機能管理ページを開くには：</p>
-            <code className="bg-muted px-2 py-1 rounded">edge://extensions/</code>
-            <p className="mt-2">をアドレスバーにコピー＆ペーストしてください</p>
+          <div className="text-sm text-muted-foreground">
+            <p className="font-medium mb-1">補足</p>
+            <ul className="space-y-1">
+              <li>• ZIP内の <code className="px-1 py-0.5 bg-muted rounded">shared.js</code> には現在のAPIベースURL（{resolvedApiBase}）とSupabase設定を書き込み済みです</li>
+              <li>• Docling通信はブラウザ↔イントラAPI間で完結し、Vercel/SupabaseからDoclingへ直接アクセスする必要はありません</li>
+            </ul>
           </div>
         </div>
       </DialogContent>
