@@ -19,10 +19,6 @@ Nousyncのドキュメントへ社内Webページ/PDFを保存するための開
    - 「ログイン」ボタンからSupabase (GitHub) 認証
    - 任意のタグ/プロジェクトID/出典追記設定
 
-## リダイレクト設定
-
-- SupabaseのRedirect URLsに `https://*.chromiumapp.org/*` を追加してください（`chrome.identity.launchWebAuthFlow` のリダイレクト先）。
-
 ## ライセンス
 
 - `jszip.min.js` は [JSZip](https://stuk.github.io/jszip/) 3.10.1 のビルド済みファイル（MITライセンス）を同梱しています。
