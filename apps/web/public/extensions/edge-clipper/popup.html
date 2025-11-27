@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <title>Nousync Web Clipper</title>
+    <style>
+      body {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        margin: 0;
+        padding: 12px;
+        width: 320px;
+        background: #f8fafc;
+        color: #0f172a;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+      }
+      h1 {
+        font-size: 16px;
+        margin: 0;
+      }
+      button {
+        border: none;
+        border-radius: 6px;
+        padding: 8px 12px;
+        background: #4f46e5;
+        color: #fff;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button.small {
+        padding: 6px 10px;
+        font-size: 12px;
+      }
+      button.secondary {
+        background: #e2e8f0;
+        color: #0f172a;
+      }
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      .status {
+        background: #eef2ff;
+        border-radius: 6px;
+        padding: 8px;
+        font-size: 13px;
+        margin-bottom: 12px;
+      }
+      .status.error {
+        background: #fee2e2;
+      }
+      .status.success {
+        background: #dcfce7;
+      }
+      .status.warning {
+        background: #fef9c3;
+      }
+      #statusDetail {
+        font-size: 12px;
+        color: #475569;
+        margin-top: 4px;
+      }
+      label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        margin-bottom: 8px;
+      }
+      label textarea {
+        margin-top: 4px;
+      }
+      textarea {
+        width: 100%;
+        min-height: 80px;
+        border: 1px solid #cbd5f5;
+        border-radius: 6px;
+        padding: 8px;
+        font-family: inherit;
+        resize: vertical;
+        font-size: 13px;
+        box-sizing: border-box;
+      }
+      .hint {
+        font-size: 12px;
+        color: #475569;
+        margin: 8px 0 0;
+      }
+      .result {
+        margin-top: 8px;
+        font-size: 13px;
+      }
+      .auth-panel {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        background: #fff;
+        border-radius: 8px;
+        padding: 8px 10px;
+        border: 1px solid #e2e8f0;
+        margin-bottom: 12px;
+      }
+      .auth-panel strong {
+        display: block;
+        font-size: 12px;
+        color: #475569;
+      }
+      .auth-panel span {
+        font-size: 13px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Nousync Clipper</h1>
+      <button id="openSettings" class="secondary">設定</button>
+    </header>
+
+    <div class="auth-panel">
+      <div>
+        <strong>Supabase認証</strong>
+        <span id="authStatus">未ログイン</span>
+      </div>
+      <button id="authButton" class="secondary small">ログイン</button>
+    </div>
+
+    <div id="statusBar" class="status">
+      <div id="statusText">設定を読み込み中...</div>
+      <div id="statusDetail"></div>
+    </div>
+
+    <label>
+      <input type="checkbox" id="selectionOnly" />
+      選択範囲のみ送信（Doclingをスキップ）
+    </label>
+    <label>
+      任意のメモ
+      <textarea id="noteInput" placeholder="メモや補足情報を記入できます"></textarea>
+    </label>
+    <button id="clipButton">現在のタブを保存</button>
+    <p class="hint">
+      Docling API: <span id="doclingEndpoint">-</span><br />
+      Nousync API: <span id="apiBaseLabel">-</span>
+    </p>
+    <div class="result" id="result"></div>
+    <script src="jszip.min.js"></script>
+    <script src="supabase.js"></script>
+    <script src="shared.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>

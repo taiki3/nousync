@@ -1,25 +1,13 @@
-import { Key, LogOut, Settings, User } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { LogOut, Settings, User } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { Button } from './ui/button'
 
 interface UserMenuProps {
-  showTokenModalOnAuth?: boolean
   onSettingsClick?: () => void
-  onTokenClick?: () => void
 }
 
-export function UserMenu({ showTokenModalOnAuth = false, onSettingsClick, onTokenClick }: UserMenuProps) {
+export function UserMenu({ onSettingsClick }: UserMenuProps) {
   const { user, logout, authenticated } = useAuth()
-  const [showTokenModal, setShowTokenModal] = useState(false)
-
-  // Open token modal if requested and authenticated
-  useEffect(() => {
-    if (showTokenModalOnAuth && authenticated) {
-      setShowTokenModal(true)
-      onTokenClick?.()
-    }
-  }, [showTokenModalOnAuth, authenticated, onTokenClick])
 
   if (!authenticated || !user) {
     return null
@@ -50,17 +38,6 @@ export function UserMenu({ showTokenModalOnAuth = false, onSettingsClick, onToke
         >
           <Settings className="h-4 w-4" />
         </Button>
-        {onTokenClick && (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onTokenClick}
-            className="h-8 w-8 text-muted-foreground hover:text-foreground"
-            title="拡張機能用トークンを表示"
-          >
-            <Key className="h-4 w-4" />
-          </Button>
-        )}
         <Button
           variant="ghost"
           size="icon"
