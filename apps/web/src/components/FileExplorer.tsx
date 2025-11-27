@@ -15,10 +15,8 @@ interface FileExplorerProps {
   selectedDocument: Document | null
   onDocumentSelect: (doc: Document) => void
   onDocumentCreate: (doc: Document) => void
-  showTokenModalOnAuth?: boolean
   newDocumentIds?: Set<string>
   onSettingsClick?: () => void
-  onTokenClick?: () => void
 }
 
 export default function FileExplorer({
@@ -26,10 +24,8 @@ export default function FileExplorer({
   selectedDocument,
   onDocumentSelect,
   onDocumentCreate,
-  showTokenModalOnAuth = false,
   newDocumentIds = new Set(),
   onSettingsClick,
-  onTokenClick,
 }: FileExplorerProps) {
   const [showWebClipperModal, setShowWebClipperModal] = useState(false)
   const { execute: executeApi } = useApiCall({ showErrorAlert: false })
@@ -60,11 +56,7 @@ export default function FileExplorer({
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      <UserMenu
-        showTokenModalOnAuth={showTokenModalOnAuth}
-        onSettingsClick={onSettingsClick}
-        onTokenClick={onTokenClick}
-      />
+      <UserMenu onSettingsClick={onSettingsClick} />
       <div className="p-4 border-b flex-shrink-0">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-lg font-semibold">ドキュメント</h2>

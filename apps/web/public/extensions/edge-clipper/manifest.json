@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "Nousync Web Clipper",
+  "description": "社内のWebページやPDFをDocling APIでMarkdown化し、Nousyncに送信します。",
+  "version": "0.1.0",
+  "permissions": ["storage", "activeTab", "tabs", "identity"],
+  "host_permissions": ["http://*/*", "https://*/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Nousync Web Clipper",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "128": "icons/icon-128.png"
+    },
+    "default_popup": "popup.html"
+  },
+  "options_page": "options.html",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "128": "icons/icon-128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["icons/*.png"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
