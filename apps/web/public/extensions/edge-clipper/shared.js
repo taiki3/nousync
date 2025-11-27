@@ -2,6 +2,7 @@
   const PLACEHOLDER_API_BASE = '__NOUSYNC_API_BASE__'
   const SUPABASE_URL = '__SUPABASE_URL__'
   const SUPABASE_ANON_KEY = '__SUPABASE_ANON_KEY__'
+  const VERCEL_BYPASS_SECRET = '__VERCEL_BYPASS_SECRET__'
   const FALLBACK_API_BASE = 'https://nousync.vercel.app/api'
   const DEFAULT_DOCLING_BASE = 'https://docling.kong-atlas.agc.jp'
   const MAX_SELECTION_LENGTH = 10000
@@ -22,7 +23,9 @@
   }
 
   function resolveDefaultApiBase() {
-    if (PLACEHOLDER_API_BASE && !PLACEHOLDER_API_BASE.includes('__NOUSYNC_API_BASE__')) {
+    // Split placeholder to avoid replacement during ZIP build
+    const apiPlaceholder = '__NOUSYNC_API' + '_BASE__'
+    if (PLACEHOLDER_API_BASE && !PLACEHOLDER_API_BASE.includes(apiPlaceholder)) {
       return normalizeBaseUrl(PLACEHOLDER_API_BASE)
     }
     return FALLBACK_API_BASE
@@ -251,6 +254,10 @@
       if (typeof node.markdown === 'string') {
         textCandidates.push({ text: node.markdown, confidence: 3, title: node.title })
       }
+      // Docling API returns md_content for PDF conversions
+      if (typeof node.md_content === 'string') {
+        textCandidates.push({ text: node.md_content, confidence: 3, title: node.title })
+      }
       if (typeof node.data === 'string' && descriptor.includes('markdown')) {
         textCandidates.push({ text: node.data, confidence: 2, title: node.title })
       }
@@ -370,11 +377,14 @@
     if (!window.supabase) {
       throw new Error('Supabase SDKが読み込まれていません')
     }
+    // Check if placeholders were not replaced (split to avoid replacement during ZIP build)
+    const urlPlaceholder = '__SUPABASE' + '_URL__'
+    const keyPlaceholder = '__SUPABASE' + '_ANON_KEY__'
     if (
       !SUPABASE_URL ||
       !SUPABASE_ANON_KEY ||
-      SUPABASE_URL.includes('__SUPABASE_URL__') ||
-      SUPABASE_ANON_KEY.includes('__SUPABASE_ANON_KEY__')
+      SUPABASE_URL.includes(urlPlaceholder) ||
+      SUPABASE_ANON_KEY.includes(keyPlaceholder)
     ) {
       throw new Error('Supabaseの設定が不足しています。WebClipperModalからZIPを再ダウンロードしてください。')
     }
@@ -497,12 +507,19 @@
     }
 
     const url = `${apiBase}/documents`
+    const headers = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    }
+    // Add Vercel preview protection bypass header if configured
+    // Split placeholder to avoid replacement during ZIP build
+    const bypassPlaceholder = '__VERCEL_BYPASS' + '_SECRET__'
+    if (VERCEL_BYPASS_SECRET && !VERCEL_BYPASS_SECRET.includes(bypassPlaceholder)) {
+      headers['x-vercel-protection-bypass'] = VERCEL_BYPASS_SECRET
+    }
     const response = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
+      headers,
       body: JSON.stringify(normalized),
       signal,
     })

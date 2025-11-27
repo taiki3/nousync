@@ -46,10 +46,12 @@ export function WebClipperModal({ open, onClose }: WebClipperModalProps) {
 
   const supabaseConfig = useMemo(() => {
     return {
-      url: import.meta.env.VITE_SUPABASE_URL as string,
-      anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+      url: (import.meta.env.VITE_SUPABASE_URL as string)?.trim() || '',
+      anonKey: (import.meta.env.VITE_SUPABASE_ANON_KEY as string)?.trim() || '',
     }
   }, [])
+
+  const vercelBypassSecret = (import.meta.env.VITE_VERCEL_BYPASS_SECRET as string)?.trim() || ''
 
   const handleDownload = async () => {
     setIsDownloading(true)
@@ -78,6 +80,7 @@ export function WebClipperModal({ open, onClose }: WebClipperModalProps) {
               .replace(/__NOUSYNC_API_BASE__/g, resolvedApiBase)
               .replace(/__SUPABASE_URL__/g, supabaseConfig.url || '')
               .replace(/__SUPABASE_ANON_KEY__/g, supabaseConfig.anonKey || '')
+              .replace(/__VERCEL_BYPASS_SECRET__/g, vercelBypassSecret || '')
           }
           zip.file(file.path, content)
         }
@@ -119,12 +122,10 @@ export function WebClipperModal({ open, onClose }: WebClipperModalProps) {
 
         <div className="space-y-4 py-4">
           <div>
-            <h3 className="font-medium mb-2">準備するもの</h3>
+            <h3 className="font-medium mb-2">必要な環境</h3>
             <ul className="text-sm text-muted-foreground space-y-1">
-              <li>• GitHubログインが有効なSupabaseプロジェクト（Anon Key/URLはZIPに書き込み済み）</li>
-              <li>• SupabaseのRedirect URLsに <code className="px-1 py-0.5 bg-muted rounded">https://*.chromiumapp.org/*</code> を追加</li>
-              <li>• Docling APIへ到達できる社内ネットワーク</li>
               <li>• Microsoft Edge (Chromium)</li>
+              <li>• Docling APIへ到達できる社内ネットワーク</li>
             </ul>
           </div>
 
