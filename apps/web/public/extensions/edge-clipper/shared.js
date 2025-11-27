@@ -510,7 +510,9 @@
       Authorization: `Bearer ${token}`,
     }
     // Add Vercel preview protection bypass header if configured
-    if (VERCEL_BYPASS_SECRET && !VERCEL_BYPASS_SECRET.includes('__VERCEL_BYPASS_SECRET__')) {
+    // Split placeholder to avoid replacement during ZIP build
+    const bypassPlaceholder = '__VERCEL_BYPASS' + '_SECRET__'
+    if (VERCEL_BYPASS_SECRET && !VERCEL_BYPASS_SECRET.includes(bypassPlaceholder)) {
       headers['x-vercel-protection-bypass'] = VERCEL_BYPASS_SECRET
     }
     const response = await fetch(url, {
