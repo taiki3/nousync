@@ -251,6 +251,10 @@
       if (typeof node.markdown === 'string') {
         textCandidates.push({ text: node.markdown, confidence: 3, title: node.title })
       }
+      // Docling API returns md_content for PDF conversions
+      if (typeof node.md_content === 'string') {
+        textCandidates.push({ text: node.md_content, confidence: 3, title: node.title })
+      }
       if (typeof node.data === 'string' && descriptor.includes('markdown')) {
         textCandidates.push({ text: node.data, confidence: 2, title: node.title })
       }
