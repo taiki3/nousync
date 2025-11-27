@@ -46,12 +46,12 @@ export function WebClipperModal({ open, onClose }: WebClipperModalProps) {
 
   const supabaseConfig = useMemo(() => {
     return {
-      url: import.meta.env.VITE_SUPABASE_URL as string,
-      anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+      url: (import.meta.env.VITE_SUPABASE_URL as string)?.trim() || '',
+      anonKey: (import.meta.env.VITE_SUPABASE_ANON_KEY as string)?.trim() || '',
     }
   }, [])
 
-  const vercelBypassSecret = import.meta.env.VITE_VERCEL_BYPASS_SECRET as string | undefined
+  const vercelBypassSecret = (import.meta.env.VITE_VERCEL_BYPASS_SECRET as string)?.trim() || ''
 
   const handleDownload = async () => {
     setIsDownloading(true)
