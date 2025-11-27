@@ -51,6 +51,8 @@ export function WebClipperModal({ open, onClose }: WebClipperModalProps) {
     }
   }, [])
 
+  const vercelBypassSecret = import.meta.env.VITE_VERCEL_BYPASS_SECRET as string | undefined
+
   const handleDownload = async () => {
     setIsDownloading(true)
 
@@ -78,6 +80,7 @@ export function WebClipperModal({ open, onClose }: WebClipperModalProps) {
               .replace(/__NOUSYNC_API_BASE__/g, resolvedApiBase)
               .replace(/__SUPABASE_URL__/g, supabaseConfig.url || '')
               .replace(/__SUPABASE_ANON_KEY__/g, supabaseConfig.anonKey || '')
+              .replace(/__VERCEL_BYPASS_SECRET__/g, vercelBypassSecret || '')
           }
           zip.file(file.path, content)
         }

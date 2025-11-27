@@ -2,6 +2,7 @@
   const PLACEHOLDER_API_BASE = '__NOUSYNC_API_BASE__'
   const SUPABASE_URL = '__SUPABASE_URL__'
   const SUPABASE_ANON_KEY = '__SUPABASE_ANON_KEY__'
+  const VERCEL_BYPASS_SECRET = '__VERCEL_BYPASS_SECRET__'
   const FALLBACK_API_BASE = 'https://nousync.vercel.app/api'
   const DEFAULT_DOCLING_BASE = 'https://docling.kong-atlas.agc.jp'
   const MAX_SELECTION_LENGTH = 10000
@@ -504,12 +505,17 @@
     }
 
     const url = `${apiBase}/documents`
+    const headers = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    }
+    // Add Vercel preview protection bypass header if configured
+    if (VERCEL_BYPASS_SECRET && !VERCEL_BYPASS_SECRET.includes('__VERCEL_BYPASS_SECRET__')) {
+      headers['x-vercel-protection-bypass'] = VERCEL_BYPASS_SECRET
+    }
     const response = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
+      headers,
       body: JSON.stringify(normalized),
       signal,
     })
